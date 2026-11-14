@@ -10,6 +10,7 @@ const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "";
 const APP_ID = process.env.DISCORD_CLIENT_ID || "1571074707053215824";
 const OWNER_ID = process.env.DISCORD_OWNER_ID || "";
+let cachedOwnerId = null;
 
 const MODERATE = 1n << 40n;
 const KICK = 1n << 1n;
@@ -40,14 +41,14 @@ function json(res, status, obj) {
 async function isOwner(interaction) {
   const userId = interaction?.member?.user?.id ?? interaction?.user?.id;
   if (OWNER_ID && userId === OWNER_ID) return true;
-  // fetch guild owner
-  try {
-    const r = await fetch(`https://discord.com/api/v10/guilds/${interaction.guild_id}`, { headers: { Authorization: `Bot ${BOT_TOKEN}` } });
-    const g = await r.json();
-    return g.owner_id === userId;
-  } catch {
-    return false;
+  if (!cachedOwnerId) {
+    try {
+      const r = await fetch(`https://discord.com/api/v10/guilds/${interaction.guild_id}`, { headers: { Authorization: `Bot ${BOT_TOKEN}` } });
+      const g = await r.json();
+      cachedOwnerId = g.owner_id;
+    } catch { cachedOwnerId = null; }
   }
+  return cachedOwnerId === userId;
 }
 
 function hasPerm(interaction, bit) {
@@ -57,12 +58,13 @@ function hasPerm(interaction, bit) {
 
 async function followup(interactionToken, content) {
   try {
-    await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${interactionToken}/messages/@original`, {
+    const r = await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${interactionToken}/messages/@original`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
     });
-  } catch {}
+    if (!r.ok) console.error("[followup] failed", r.status);
+  } catch (e) { console.error("[followup] error", e); }
 }
 
 async function handleCommand(interaction) {
@@ -76,7 +78,7 @@ async function handleCommand(interaction) {
 
   switch (name) {
     case "status":
-      return { type: 4, data: { content: "Vanta Fiber — Season Zero. Discord bot: online. ARK provider integration: manual workflow (not verified live). Platform: Xbox + Windows Microsoft Store ASE. Positioning: 1000x Fibercraft PvP." } };
+      return { type: 4, data: { content: "Vanta Fiber ï¿½ Season Zero. Discord bot: online. ARK provider integration: manual workflow (not verified live). Platform: Xbox + Windows Microsoft Store ASE. Positioning: 1000x Fibercraft PvP." } };
     case "join":
       return { type: 4, data: { content: "Join the waitlist at the Vanta Fiber website. Season Zero briefing, raid calendar and event invites before launch." } };
     case "report": {
@@ -123,12 +125,19 @@ async function handleCommand(interaction) {
         // defer
         const token = interaction.token;
         (async () => {
-          const results = await setupApply(BOT_TOKEN, guildId);
-          const created = results.filter((r) => r.status === "created").length;
-          const existing = results.filter((r) => r.status === "exists").length;
-          const errors = results.filter((r) => r.status.startsWith("error")).length;
-          const am = results.filter((r) => r.type === "automod");
-          await followup(token, "Setup apply complete: " + created + " created, " + existing + " already present, " + errors + " errors. AutoMod: " + am.map((r) => r.status).join(", ") + ".");
+          try {
+            const results = await setupApply(BOT_TOKEN, guildId);
+            const created = results.filter((r) => r.status === "created").length;
+            const existing = results.filter((r) => r.status === "exists").length;
+            const errors = results.filter((r) => r.status.startsWith("error")).length;
+            const am = results.filter((r) => r.type === "automod");
+            const msg = "Setup apply complete: " + created + " created, " + existing + " already present, " + errors + " errors. AutoMod: " + am.map((r) => r.status).join(", ") + ".";
+            const r = await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${token}/messages/@original`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
+            if (!r.ok) console.error("[setup] followup failed", r.status);
+          } catch (e) {
+            console.error("[setup] apply failed", e);
+            await followup(token, "Setup apply failed: " + (e?.message ?? e));
+          }
         })();
         return { type: 5 };
       }
@@ -152,7 +161,7 @@ async function handleCommand(interaction) {
     }
     case "vanta":
       if (!owner) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
-      return { type: 4, data: { content: "VANTA CORE — Overview: Discord bot online, gateway connected, interactions verified. Use /setup audit for infrastructure status." } };
+      return { type: 4, data: { content: "VANTA CORE ï¿½ Overview: Discord bot online, gateway connected, interactions verified. Use /setup audit for infrastructure status." } };
     case "ticket": {
       const subject = (interaction?.data?.options?.[0]?.value ?? "support").toString();
       const record = { id: "tkt_" + Date.now(), userId, subject, createdAt: new Date().toISOString(), status: "open" };

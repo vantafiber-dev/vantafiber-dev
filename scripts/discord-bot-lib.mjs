@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 const API = "https://discord.com/api/v10";
 
 export async function discordFetch(path, token, options = {}) {
@@ -13,7 +15,7 @@ export async function discordFetch(path, token, options = {}) {
 
 export const BLUEPRINT = {
   roles: [
-    { name: "Vanta Owner", color: 0xff0000, hoist: true, permissions: "8" },
+    { name: "Vanta Owner", color: 0xff0000, hoist: true, permissions: "0" },
     { name: "Operations", color: 0xff8800, hoist: true, permissions: "0" },
     { name: "Moderator", color: 0x00aaff, hoist: true, permissions: "0" },
     { name: "Trial Moderator", color: 0x0088cc, hoist: true, permissions: "0" },
@@ -95,7 +97,7 @@ export async function setupApply(token, guildId) {
     if (roleMap.has(r.name)) { results.push({ type: "role", name: r.name, status: "exists" }); continue; }
     const res = await discordFetch(`/guilds/${guildId}/roles`, token, { method: "POST", body: JSON.stringify({ name: r.name, color: r.color, hoist: r.hoist, permissions: r.permissions }) });
     if (res.status === 200 || res.status === 201) { roleMap.set(r.name, res.data.id); results.push({ type: "role", name: r.name, status: "created" }); }
-    else results.push({ type: "role", name: r.name, status: `error ${res.status}` });
+    else results.push({ type: "role", name: r.name, status: "error " + res.status });
   }
   const { data: existingChannels } = await discordFetch(`/guilds/${guildId}/channels`, token);
   const channelMap = new Map(existingChannels.map((c) => [c.name, c.id]));
@@ -104,7 +106,7 @@ export async function setupApply(token, guildId) {
     if (channelMap.has(cat.name)) { categoryMap.set(cat.name, channelMap.get(cat.name)); results.push({ type: "category", name: cat.name, status: "exists" }); continue; }
     const res = await discordFetch(`/guilds/${guildId}/channels`, token, { method: "POST", body: JSON.stringify({ name: cat.name, type: 4 }) });
     if (res.status === 200 || res.status === 201) { channelMap.set(cat.name, res.data.id); categoryMap.set(cat.name, res.data.id); results.push({ type: "category", name: cat.name, status: "created" }); }
-    else results.push({ type: "category", name: cat.name, status: `error ${res.status}` });
+    else results.push({ type: "category", name: cat.name, status: "error " + res.status });
   }
   for (const ch of BLUEPRINT.channels) {
     if (channelMap.has(ch.name)) { results.push({ type: "channel", name: ch.name, status: "exists" }); continue; }
@@ -112,12 +114,33 @@ export async function setupApply(token, guildId) {
     if (ch.category && categoryMap.has(ch.category)) payload.parent_id = categoryMap.get(ch.category);
     const res = await discordFetch(`/guilds/${guildId}/channels`, token, { method: "POST", body: JSON.stringify(payload) });
     if (res.status === 200 || res.status === 201) { channelMap.set(ch.name, res.data.id); results.push({ type: "channel", name: ch.name, status: "created" }); }
-    else results.push({ type: "channel", name: ch.name, status: `error ${res.status}: ${JSON.stringify(res.data).slice(0,100)}` });
+    else results.push({ type: "channel", name: ch.name, status: "error " + res.status + ": " + JSON.stringify(res.data).slice(0, 100) });
   }
+  // Privacy overwrites for staff/owner channels: deny @everyone view
+  const privateCats = ["STAFF (PRIVATE)", "OWNER (RESTRICTED)"];
+  for (const ch of BLUEPRINT.channels) {
+    if (!privateCats.includes(ch.category)) continue;
+    const cid = channelMap.get(ch.name);
+    if (!cid) continue;
+    await discordFetch(`/channels/${cid}/permissions/${guildId}`, token, { method: "PUT", body: JSON.stringify({ type: 0, allow: "0", deny: "1024" }) });
+  }
+  // AutoMod rules (idempotent by name)
   const am = await createAutoModRules(token, guildId);
   for (const r of am) results.push({ type: "automod", name: r.name, status: r.status });
+  // Welcome message (persist ID, edit if exists)
   const w = await postWelcome(token, guildId, channelMap);
   results.push({ type: "welcome", name: "welcome message", status: w.status });
+  // Persist welcome message id
+  try {
+    const welcomeId = channelMap.get("welcome");
+    if (welcomeId) {
+      const { data: msgs } = await discordFetch(`/channels/${welcomeId}/messages?limit=10`, token);
+      const existing = Array.isArray(msgs) ? msgs.find((m) => (m.content || "").includes("VANTA FIBER - WELCOME")) : null;
+      if (existing) fs.writeFileSync("/home/container/vanta-welcome-id.txt", existing.id);
+    }
+  } catch {}
+  // Persist operation tracking
+  try { fs.writeFileSync("/home/container/vanta-setup-job.json", JSON.stringify({ status: "completed", at: new Date().toISOString(), created: results.filter((r) => r.status === "created").length })); } catch {}
   return results;
 }
 
@@ -142,7 +165,7 @@ export async function createAutoModRules(token, guildId) {
   for (const r of desired) {
     if (existingByName.has(r.name)) { results.push({ name: r.name, status: "exists" }); continue; }
     const res = await discordFetch(`/guilds/${guildId}/auto-moderation/rules`, token, { method: "POST", body: JSON.stringify(r) });
-    results.push({ name: r.name, status: res.status === 200 || res.status === 201 ? "created" : `error ${res.status}` });
+    results.push({ name: r.name, status: res.status === 200 || res.status === 201 ? "created" : "error " + res.status });
   }
   return results;
 }
@@ -150,14 +173,23 @@ export async function createAutoModRules(token, guildId) {
 export async function postWelcome(token, guildId, channelMap) {
   const welcomeId = channelMap.get("welcome");
   if (!welcomeId) return { status: "no welcome channel" };
-  const { data: msgs } = await discordFetch(`/channels/${welcomeId}/messages?limit=10`, token);
-  const marker = "VANTA FIBER - WELCOME";
-  const existing = Array.isArray(msgs) ? msgs.find((m) => (m.content || "").includes(marker)) : null;
+  let storedId = null;
+  try { storedId = fs.readFileSync("/home/container/vanta-welcome-id.txt", "utf8").trim(); } catch {}
   const content = "VANTA FIBER - WELCOME\n\nWelcome to Vanta Fiber: 1000x Fibercraft PvP on Xbox and Windows Microsoft Store ARK: Survival Evolved.\n\nRules, join instructions, role selection and support are in the channels below. Season Zero is live. Read announcements and wipe-calendar.\n\nNo fake counts, no pay-to-win. Fair play is enforced.";
+  if (storedId) {
+    const res = await discordFetch(`/channels/${welcomeId}/messages/${storedId}`, token, { method: "PATCH", body: JSON.stringify({ content }) });
+    if (res.status === 200) return { status: "edited" };
+  }
+  const { data: msgs } = await discordFetch(`/channels/${welcomeId}/messages?limit=10`, token);
+  const existing = Array.isArray(msgs) ? msgs.find((m) => (m.content || "").includes("VANTA FIBER - WELCOME")) : null;
   if (existing) {
+    try { fs.writeFileSync("/home/container/vanta-welcome-id.txt", existing.id); } catch {}
     const res = await discordFetch(`/channels/${welcomeId}/messages/${existing.id}`, token, { method: "PATCH", body: JSON.stringify({ content }) });
-    return { status: res.status === 200 ? "edited" : `error ${res.status}` };
+    return { status: res.status === 200 ? "edited" : "error " + res.status };
   }
   const res = await discordFetch(`/channels/${welcomeId}/messages`, token, { method: "POST", body: JSON.stringify({ content }) });
-  return { status: res.status === 200 || res.status === 201 ? "posted" : `error ${res.status}` };
+  if (res.status === 200 || res.status === 201) {
+    try { fs.writeFileSync("/home/container/vanta-welcome-id.txt", res.data.id); } catch {}
+  }
+  return { status: res.status === 200 || res.status === 201 ? "posted" : "error " + res.status };
 }
