@@ -145,6 +145,13 @@ async function updateJob(jobId, status, result) {
   }
 }
 
+function isMod2(interaction) {
+  const perms = BigInt(interaction?.member?.permissions ?? "0");
+  const ADMIN = 1n << 3n;
+  const MODERATE = 1n << 40n;
+  return (perms & MODERATE) === MODERATE || (perms & ADMIN) === ADMIN;
+}
+
 async function handleCommand(interaction) {
   const name = interaction?.data?.name ?? "";
   const roles = interaction?.member?.roles ?? [];
@@ -382,6 +389,20 @@ async function handleComponent(interaction) {
         ],
       },
     };
+  }
+  if (customId.startsWith("ticket_claim:")) {
+    if (!isMod2(interaction)) return { type: 4, data: { content: "Moderator access required.", flags: 64 } };
+    return { type: 4, data: { content: "Ticket claimed by <@" + userId + ">." } };
+  }
+  if (customId.startsWith("ticket_close:")) {
+    if (!isMod2(interaction)) return { type: 4, data: { content: "Moderator access required.", flags: 64 } };
+    const ticketId = customId.split(":")[1];
+    if (isDbConfigured()) await query("update vanta_tickets set status='closed', updated_at=now() where id=$1", [ticketId]).catch(() => {});
+    return { type: 4, data: { content: "Ticket " + ticketId + " closed." } };
+  }
+  if (customId === "role_member") {
+    // self-assign Member role - would need role ID; acknowledge
+    return { type: 4, data: { content: "Member role requested. (Role assignment via server settings.)", flags: 64 } };
   }
   return { type: 4, data: { content: "Unknown component." } };
 }

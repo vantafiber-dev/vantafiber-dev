@@ -29,6 +29,7 @@ const commands = [
   { name: "ark", description: "ARK cluster status (staff)" },
   { name: "shop", description: "Shop and supporter packages" },
   { name: "staff", description: "Staff roster and tasks" },
+  { name: "case", description: "Create a moderation case (staff)", options: [ { name: "subject", description: "Case subject", type: 3, required: true } ] },
 ];
 
 const url = `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`;
