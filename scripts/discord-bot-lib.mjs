@@ -116,7 +116,6 @@ export async function setupApply(token, guildId) {
     if (res.status === 200 || res.status === 201) { channelMap.set(ch.name, res.data.id); results.push({ type: "channel", name: ch.name, status: "created" }); }
     else results.push({ type: "channel", name: ch.name, status: "error " + res.status + ": " + JSON.stringify(res.data).slice(0, 100) });
   }
-  // Privacy overwrites for staff/owner channels: deny @everyone view
   const privateCats = ["STAFF (PRIVATE)", "OWNER (RESTRICTED)"];
   for (const ch of BLUEPRINT.channels) {
     if (!privateCats.includes(ch.category)) continue;
@@ -125,13 +124,23 @@ export async function setupApply(token, guildId) {
     const res = await discordFetch(`/channels/${cid}/permissions/${guildId}`, token, { method: "PUT", body: JSON.stringify({ type: 0, allow: "0", deny: "1024" }) });
     results.push({ type: "permission", name: ch.name, status: res.status === 204 || res.status === 200 ? "applied" : "error " + res.status });
   }
-  // AutoMod rules (idempotent by name)
+  const staffRoleNames = ["Operations", "Moderator", "Trial Moderator"];
+  const { data: allRoles } = await discordFetch(`/guilds/${guildId}/roles`, token);
+  const roleByName = new Map(allRoles.map((r) => [r.name, r.id]));
+  for (const ch of BLUEPRINT.channels) {
+    if (!privateCats.includes(ch.category)) continue;
+    const cid = channelMap.get(ch.name);
+    if (!cid) continue;
+    for (const rn of staffRoleNames) {
+      const rid = roleByName.get(rn);
+      if (!rid) continue;
+      await discordFetch(`/channels/${cid}/permissions/${rid}`, token, { method: "PUT", body: JSON.stringify({ type: 0, allow: "3072", deny: "0" }) });
+    }
+  }
   const am = await createAutoModRules(token, guildId);
   for (const r of am) results.push({ type: "automod", name: r.name, status: r.status });
-  // Welcome message (persist ID, edit if exists)
   const w = await postWelcome(token, guildId, channelMap);
   results.push({ type: "welcome", name: "welcome message", status: w.status });
-  // Persist welcome message id
   try {
     const welcomeId = channelMap.get("welcome");
     if (welcomeId) {
@@ -139,9 +148,8 @@ export async function setupApply(token, guildId) {
       const existing = Array.isArray(msgs) ? msgs.find((m) => (m.content || "").includes("VANTA FIBER - WELCOME")) : null;
       if (existing) fs.writeFileSync("/home/container/vanta-welcome-id.txt", existing.id);
     }
-  } catch {}
-  // Persist operation tracking
-  try { fs.writeFileSync("/home/container/vanta-setup-job.json", JSON.stringify({ status: "completed", at: new Date().toISOString(), created: results.filter((r) => r.status === "created").length })); } catch {}
+  } catch (e) { console.error("[welcome] persist failed", e); }
+  try { fs.writeFileSync("/home/container/vanta-setup-job.json", JSON.stringify({ status: "completed", at: new Date().toISOString(), created: results.filter((r) => r.status === "created").length })); } catch (e) { console.error("[setup] persist failed", e); }
   return results;
 }
 
@@ -184,13 +192,13 @@ export async function postWelcome(token, guildId, channelMap) {
   const { data: msgs } = await discordFetch(`/channels/${welcomeId}/messages?limit=10`, token);
   const existing = Array.isArray(msgs) ? msgs.find((m) => (m.content || "").includes("VANTA FIBER - WELCOME")) : null;
   if (existing) {
-    try { fs.writeFileSync("/home/container/vanta-welcome-id.txt", existing.id); } catch {}
+    try { fs.writeFileSync("/home/container/vanta-welcome-id.txt", existing.id); } catch (e) { console.error("[welcome] persist failed", e); }
     const res = await discordFetch(`/channels/${welcomeId}/messages/${existing.id}`, token, { method: "PATCH", body: JSON.stringify({ content }) });
     return { status: res.status === 200 ? "edited" : "error " + res.status };
   }
   const res = await discordFetch(`/channels/${welcomeId}/messages`, token, { method: "POST", body: JSON.stringify({ content }) });
   if (res.status === 200 || res.status === 201) {
-    try { fs.writeFileSync("/home/container/vanta-welcome-id.txt", res.data.id); } catch {}
+    try { fs.writeFileSync("/home/container/vanta-welcome-id.txt", res.data.id); } catch (e) { console.error("[welcome] persist failed", e); }
   }
   return { status: res.status === 200 || res.status === 201 ? "posted" : "error " + res.status };
 }
