@@ -32,13 +32,14 @@ function json(res, status, obj) {
 async function handleCommand(interaction) {
   const name = interaction?.data?.name ?? "";
   const roles = interaction?.member?.roles ?? [];
-  const isAdmin = roles.includes(process.env.DISCORD_ADMIN_ROLE_ID ?? "");
-  const isMod = roles.includes(process.env.DISCORD_MOD_ROLE_ID ?? "") || isAdmin;
+  const perms = BigInt(interaction?.member?.permissions ?? "0");
+  const isAdmin = (perms & 8n) === 8n || roles.includes(process.env.DISCORD_ADMIN_ROLE_ID ?? "");
+  const isMod = (perms & 2n) === 2n || roles.includes(process.env.DISCORD_MOD_ROLE_ID ?? "") || isAdmin;
   const guildId = interaction.guild_id || GUILD_ID;
 
   switch (name) {
     case "status":
-      return { type: 4, data: { content: "Vanta Fiber — Season Zero. Server status: online. Platform: Xbox + Windows Microsoft Store ASE. Positioning: 1000x Fibercraft PvP." } };
+      return { type: 4, data: { content: "Vanta Fiber ï¿½ Season Zero. Server status: online. Platform: Xbox + Windows Microsoft Store ASE. Positioning: 1000x Fibercraft PvP." } };
     case "join":
       return { type: 4, data: { content: "Join the waitlist at the Vanta Fiber website. Season Zero briefing, raid calendar and event invites before launch." } };
     case "report":
