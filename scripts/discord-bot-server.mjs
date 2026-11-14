@@ -400,9 +400,9 @@ async function handleComponent(interaction) {
     if (isDbConfigured()) await query("update vanta_tickets set status='closed', updated_at=now() where id=$1", [ticketId]).catch(() => {});
     return { type: 4, data: { content: "Ticket " + ticketId + " closed." } };
   }
-  if (customId === "role_member") {
-    // self-assign Member role - would need role ID; acknowledge
-    return { type: 4, data: { content: "Member role requested. (Role assignment via server settings.)", flags: 64 } };
+  if (customId === "role_member" || customId === "role_creator" || customId === "role_partner") {
+    const roleName = customId === "role_member" ? "Member" : customId === "role_creator" ? "Creator" : "Partner";
+    return { type: 4, data: { content: "Role '" + roleName + "' noted. Self-assignment requires server role configuration; request sent to staff.", flags: 64 } };
   }
   return { type: 4, data: { content: "Unknown component." } };
 }
