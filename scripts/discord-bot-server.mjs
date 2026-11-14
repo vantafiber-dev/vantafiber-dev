@@ -159,11 +159,17 @@ async function handleCommand(interaction) {
       return { type: 4, data: { content: "Vanta Fiber � Season Zero. Discord bot: online. DB: " + (isDbConfigured() ? "configured" : "not configured") + ". ARK provider: manual (unverified). Platform: Xbox + Windows Microsoft Store ASE." } };
     case "join":
       return { type: 4, data: { content: "Join the waitlist at the Vanta Fiber website. Season Zero briefing, raid calendar and event invites before launch." } };
-    case "report": {
-      const subject = (interaction?.data?.options?.[0]?.value ?? "report").toString();
-      const id = await persistReport(guildId, userId, subject);
-      return { type: 4, data: { content: "Report recorded (id " + id + "). Staff will review." } };
-    }
+    case "report":
+      return {
+        type: 4,
+        data: {
+          content: "File a report:",
+          components: [{
+            type: 1,
+            components: [{ type: 2, style: 4, label: "Report a Player", custom_id: "open_report_modal" }],
+          }],
+        },
+      };
     case "ban":
       if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
       return { type: 4, data: { content: "Ban action requires confirmation via the website admin terminal. Discord ban not auto-applied." } };
@@ -256,11 +262,17 @@ async function handleCommand(interaction) {
         },
       };
     }
-    case "ticket": {
-      const subject = (interaction?.data?.options?.[0]?.value ?? "support").toString();
-      const id = await persistTicket(guildId, userId, subject);
-      return { type: 4, data: { content: "Ticket opened (id " + id + "). Staff notified." } };
-    }
+    case "ticket":
+      return {
+        type: 4,
+        data: {
+          content: "Open a support ticket:",
+          components: [{
+            type: 1,
+            components: [{ type: 2, style: 1, label: "Open Ticket", custom_id: "open_ticket_modal" }],
+          }],
+        },
+      };
     case "mod":
       if (!isMod) return { type: 4, data: { content: "Moderator access required.", flags: 64 } };
       return { type: 4, data: { content: "Moderation case created. Use website /reports for evidence, assignment and resolution workflow." } };
@@ -342,7 +354,85 @@ async function handleComponent(interaction) {
     return { type: 4, data: { content: "Setup preview: " + preview.rolesToCreate.length + " roles, " + preview.categoriesToCreate.length + " categories, " + preview.channelsToCreate.length + " channels to create. Already present: " + preview.alreadyPresent + "." } };
   }
 
+  if (customId === "open_ticket_modal") {
+    return {
+      type: 9,
+      data: {
+        custom_id: "ticket_modal",
+        title: "Open Support Ticket",
+        components: [
+          { type: 1, components: [{ type: 4, custom_id: "subject", label: "Subject", style: 1, required: true }] },
+          { type: 1, components: [{ type: 4, custom_id: "category", label: "Category (general/report/appeal/purchase)", style: 1, required: true }] },
+          { type: 1, components: [{ type: 4, custom_id: "description", label: "Description", style: 2, required: true }] },
+        ],
+      },
+    };
+  }
+  if (customId === "open_report_modal") {
+    return {
+      type: 9,
+      data: {
+        custom_id: "report_modal",
+        title: "Report a Player",
+        components: [
+          { type: 1, components: [{ type: 4, custom_id: "gamertag", label: "Xbox Gamertag", style: 1, required: true }] },
+          { type: 1, components: [{ type: 4, custom_id: "behaviour", label: "Suspected behaviour", style: 2, required: true }] },
+          { type: 1, components: [{ type: 4, custom_id: "time", label: "Approximate time", style: 1, required: false }] },
+          { type: 1, components: [{ type: 4, custom_id: "evidence", label: "Evidence links", style: 2, required: false }] },
+        ],
+      },
+    };
+  }
   return { type: 4, data: { content: "Unknown component." } };
+}
+
+
+async function handleModal(interaction) {
+  const customId = interaction?.data?.custom_id ?? "";
+  const guildId = interaction.guild_id || GUILD_ID;
+  const userId = interaction?.member?.user?.id ?? interaction?.user?.id ?? "unknown";
+  const fields = interaction?.data?.components?.flatMap((r) => r.components ?? []) ?? [];
+  const get = (id) => fields.find((f) => f.custom_id === id)?.value ?? "";
+
+  if (customId === "ticket_modal") {
+    const subject = get("subject") || "support";
+    const description = get("description") || "";
+    const category = get("category") || "general";
+    const id = "tkt_" + Date.now();
+    try {
+      if (isDbConfigured()) {
+        await query("insert into vanta_tickets (id, guild_id, user_id, subject, category) values ($1,$2,$3,$4,$5)", [id, guildId, userId, subject, category]);
+      }
+    } catch (e) { console.error("[ticket] db failed", e); }
+    // Create private channel
+    try {
+      const { data: channels } = await (await fetch("https://discord.com/api/v10/guilds/" + guildId + "/channels", { headers: { Authorization: "Bot " + BOT_TOKEN } })).json();
+      const supportCat = channels.find((c) => c.name === "SUPPORT" && c.type === 4);
+      const body = { name: "ticket-" + id.slice(-6), type: 0, parent_id: supportCat?.id, topic: subject };
+      const r = await fetch("https://discord.com/api/v10/guilds/" + guildId + "/channels", { method: "POST", headers: { Authorization: "Bot " + BOT_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (r.ok) {
+        const ch = await r.json();
+        await fetch("https://discord.com/api/v10/channels/" + ch.id + "/messages", { method: "POST", headers: { Authorization: "Bot " + BOT_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ content: "Ticket " + id + "\nSubject: " + subject + "\nCategory: " + category + "\n\n" + description + "\n\nOpened by <@" + userId + ">" }) });
+      }
+    } catch (e) { console.error("[ticket] channel failed", e); }
+    return { type: 4, data: { content: "Ticket opened (id " + id + "). A private channel has been created." }, flags: 64 };
+  }
+
+  if (customId === "report_modal") {
+    const gamertag = get("gamertag") || "";
+    const behaviour = get("behaviour") || "";
+    const time = get("time") || "";
+    const evidence = get("evidence") || "";
+    const id = "rpt_" + Date.now();
+    try {
+      if (isDbConfigured()) {
+        await query("insert into vanta_reports (id, guild_id, user_id, subject) values ($1,$2,$3,$4)", [id, guildId, userId, behaviour]);
+      }
+    } catch (e) { console.error("[report] db failed", e); }
+    return { type: 4, data: { content: "Report recorded (id " + id + "). Evidence: " + (evidence || "none") + ". Staff will review." }, flags: 64 };
+  }
+
+  return { type: 4, data: { content: "Unknown modal." } };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -378,6 +468,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (interaction.type === 3) {
       const result = await handleComponent(interaction);
+      return json(res, 200, result);
+    }
+    if (interaction.type === 5) {
+      const result = await handleModal(interaction);
       return json(res, 200, result);
     }
     return json(res, 400, { error: "Unsupported interaction type" });
