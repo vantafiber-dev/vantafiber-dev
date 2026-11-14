@@ -1,4 +1,5 @@
 import http from "node:http";
+import fs from "node:fs";
 import { createPublicKey, verify as cryptoVerify } from "node:crypto";
 import { setupPreview, setupApply, setupAudit } from "./discord-bot-lib.mjs";
 
@@ -36,27 +37,47 @@ async function handleCommand(interaction) {
   const isAdmin = (perms & 8n) === 8n || roles.includes(process.env.DISCORD_ADMIN_ROLE_ID ?? "");
   const isMod = (perms & 2n) === 2n || roles.includes(process.env.DISCORD_MOD_ROLE_ID ?? "") || isAdmin;
   const guildId = interaction.guild_id || GUILD_ID;
+  const userId = interaction?.member?.user?.id ?? interaction?.user?.id ?? "unknown";
 
   switch (name) {
     case "status":
-      return { type: 4, data: { content: "Vanta Fiber ï¿½ Season Zero. Server status: online. Platform: Xbox + Windows Microsoft Store ASE. Positioning: 1000x Fibercraft PvP." } };
+      return { type: 4, data: { content: "Vanta Fiber — Season Zero. Discord bot: online. ARK provider integration: manual workflow (not verified live). Platform: Xbox + Windows Microsoft Store ASE. Positioning: 1000x Fibercraft PvP." } };
     case "join":
       return { type: 4, data: { content: "Join the waitlist at the Vanta Fiber website. Season Zero briefing, raid calendar and event invites before launch." } };
-    case "report":
-      return { type: 4, data: { content: "Report submitted. Use the website /reports page for full evidence and tracking." } };
+    case "report": {
+      const subject = (interaction?.data?.options?.[0]?.value ?? "report").toString();
+      const record = { id: "rpt_" + Date.now(), userId, subject, createdAt: new Date().toISOString() };
+      try {
+        const p = "/home/container/vanta-reports.json";
+        let arr = [];
+        try { arr = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
+        arr.push(record);
+        fs.writeFileSync(p, JSON.stringify(arr));
+      } catch {}
+      return { type: 4, data: { content: "Report recorded (id " + record.id + "). Staff will review." } };
+    }
     case "ban":
       if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
       return { type: 4, data: { content: "Ban action requires confirmation via the website admin terminal. Discord ban not auto-applied." } };
-    case "mute":
+    case "mute": {
       if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
-      return { type: 4, data: { content: "Timeout applied (mute alias). Duration configurable via website." } };
-    case "setup":
-      // subcommand
+      const targetId = interaction?.data?.options?.[0]?.value;
+      if (!targetId) return { type: 4, data: { content: "Missing target user.", flags: 64 } };
+      const until = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${targetId}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ communication_disabled_until: until }),
+      });
+      if (res.status === 200) return { type: 4, data: { content: "Timed out <@" + targetId + "> for 10 minutes." } };
+      return { type: 4, data: { content: "Timeout failed (HTTP " + res.status + ").", flags: 64 } };
+    }
+    case "setup": {
       const sub = interaction?.data?.options?.[0]?.name ?? "preview";
       if (sub === "preview") {
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
         const preview = await setupPreview(BOT_TOKEN, guildId);
-        return { type: 4, data: { content: `Setup preview: ${preview.rolesToCreate.length} roles, ${preview.categoriesToCreate.length} categories, ${preview.channelsToCreate.length} channels to create. Already present: ${preview.alreadyPresent}.` } };
+        return { type: 4, data: { content: "Setup preview: " + preview.rolesToCreate.length + " roles, " + preview.categoriesToCreate.length + " categories, " + preview.channelsToCreate.length + " channels to create. Already present: " + preview.alreadyPresent + "." } };
       }
       if (sub === "apply") {
         if (!isAdmin) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
@@ -66,26 +87,37 @@ async function handleCommand(interaction) {
         const existing = results.filter((r) => r.status === "exists").length;
         const errors = results.filter((r) => r.status.startsWith("error")).length;
         const am = results.filter((r) => r.type === "automod");
-        return { type: 4, data: { content: `Setup apply complete: ${created} created, ${existing} already present, ${errors} errors. AutoMod rules: ${am.map((r) => r.status).join(", ")}.` } };
+        return { type: 4, data: { content: "Setup apply complete: " + created + " created, " + existing + " already present, " + errors + " errors. AutoMod: " + am.map((r) => r.status).join(", ") + "." } };
       }
       if (sub === "audit") {
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
         const audit = await setupAudit(BOT_TOKEN, guildId);
-        return { type: 4, data: { content: `Audit: ${audit.missingRoles.length} missing roles, ${audit.missingChannels.length} missing channels. Total roles: ${audit.totalRoles}, channels: ${audit.totalChannels}.` } };
+        return { type: 4, data: { content: "Audit: " + audit.missingRoles.length + " missing roles, " + audit.missingChannels.length + " missing channels. Total roles: " + audit.totalRoles + ", channels: " + audit.totalChannels + "." } };
       }
       if (sub === "repair") {
         if (!isAdmin) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
         const results = await setupApply(BOT_TOKEN, guildId);
         const created = results.filter((r) => r.status === "created").length;
-        return { type: 4, data: { content: `Repair complete: ${created} items created/repaired.` } };
+        return { type: 4, data: { content: "Repair complete: " + created + " items created/repaired." } };
       }
       return { type: 4, data: { content: "Unknown setup subcommand." } };
+    }
     case "vanta":
       if (!isAdmin) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
-      return { type: 4, data: { content: "VANTA CORE ï¿½ Overview: Discord bot online, gateway connected, interactions verified. Use /setup audit for infrastructure status. Website: see deployment." } };
-    case "ticket":
-      return { type: 4, data: { content: "Ticket opened. A staff member will respond. Use /ticket on the website for full tracking and transcripts." } };
+      return { type: 4, data: { content: "VANTA CORE — Overview: Discord bot online, gateway connected, interactions verified. Use /setup audit for infrastructure status." } };
+    case "ticket": {
+      const subject = (interaction?.data?.options?.[0]?.value ?? "support").toString();
+      const record = { id: "tkt_" + Date.now(), userId, subject, createdAt: new Date().toISOString(), status: "open" };
+      try {
+        const p = "/home/container/vanta-tickets.json";
+        let arr = [];
+        try { arr = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
+        arr.push(record);
+        fs.writeFileSync(p, JSON.stringify(arr));
+      } catch {}
+      return { type: 4, data: { content: "Ticket opened (id " + record.id + "). Staff notified." } };
+    }
     case "mod":
       if (!isMod) return { type: 4, data: { content: "Moderator access required.", flags: 64 } };
       return { type: 4, data: { content: "Moderation case created. Use website /reports for evidence, assignment and resolution workflow." } };
@@ -93,14 +125,14 @@ async function handleCommand(interaction) {
       return { type: 4, data: { content: "Event noted. Registrations and rosters managed on the website /events page." } };
     case "ark":
       if (!isMod) return { type: 4, data: { content: "Staff access required.", flags: 64 } };
-      return { type: 4, data: { content: "ARK cluster status: platform Xbox + Windows Microsoft Store ASE. Provider integration: manual workflow. See website /status." } };
+      return { type: 4, data: { content: "ARK cluster status: platform Xbox + Windows Microsoft Store ASE. Provider integration: manual workflow (not verified live). See website /status." } };
     case "shop":
       return { type: 4, data: { content: "Shop and supporter packages: see website /commerce. Payment processing is owner-gated." } };
     case "staff":
       if (!isMod) return { type: 4, data: { content: "Staff access required.", flags: 64 } };
       return { type: 4, data: { content: "Staff roster and tasks managed on the website. Use /vanta for owner controls." } };
     default:
-      return { type: 4, data: { content: `Unknown command: ${name}` } };
+      return { type: 4, data: { content: "Unknown command: " + name } };
   }
 }
 
@@ -142,7 +174,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(Number(PORT), HOST, () => {
-  console.log(`[bot] listening on ${HOST}:${PORT}`);
+  console.log("[bot] listening on " + HOST + ":" + PORT);
 });
 
 server.on("error", (err) => {

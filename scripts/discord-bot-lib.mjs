@@ -76,11 +76,9 @@ export async function setupPreview(token, guildId) {
   const { data: existingRoles } = await discordFetch(`/guilds/${guildId}/roles`, token);
   const existingChannelNames = new Set(existingChannels.map((c) => c.name));
   const existingRoleNames = new Set(existingRoles.map((r) => r.name));
-
   const toCreateRoles = BLUEPRINT.roles.filter((r) => !existingRoleNames.has(r.name));
   const toCreateCategories = BLUEPRINT.categories.filter((c) => !existingChannelNames.has(c.name));
   const toCreateChannels = BLUEPRINT.channels.filter((c) => !existingChannelNames.has(c.name));
-
   return {
     rolesToCreate: toCreateRoles.map((r) => r.name),
     categoriesToCreate: toCreateCategories.map((c) => c.name),
@@ -91,7 +89,6 @@ export async function setupPreview(token, guildId) {
 
 export async function setupApply(token, guildId) {
   const results = [];
-  // Roles
   const { data: existingRoles } = await discordFetch(`/guilds/${guildId}/roles`, token);
   const roleMap = new Map(existingRoles.map((r) => [r.name, r.id]));
   for (const r of BLUEPRINT.roles) {
@@ -100,7 +97,6 @@ export async function setupApply(token, guildId) {
     if (res.status === 200 || res.status === 201) { roleMap.set(r.name, res.data.id); results.push({ type: "role", name: r.name, status: "created" }); }
     else results.push({ type: "role", name: r.name, status: `error ${res.status}` });
   }
-  // Categories
   const { data: existingChannels } = await discordFetch(`/guilds/${guildId}/channels`, token);
   const channelMap = new Map(existingChannels.map((c) => [c.name, c.id]));
   const categoryMap = new Map();
@@ -110,7 +106,6 @@ export async function setupApply(token, guildId) {
     if (res.status === 200 || res.status === 201) { channelMap.set(cat.name, res.data.id); categoryMap.set(cat.name, res.data.id); results.push({ type: "category", name: cat.name, status: "created" }); }
     else results.push({ type: "category", name: cat.name, status: `error ${res.status}` });
   }
-  // Channels
   for (const ch of BLUEPRINT.channels) {
     if (channelMap.has(ch.name)) { results.push({ type: "channel", name: ch.name, status: "exists" }); continue; }
     const payload = { name: ch.name, type: ch.type, topic: ch.topic };
@@ -119,39 +114,11 @@ export async function setupApply(token, guildId) {
     if (res.status === 200 || res.status === 201) { channelMap.set(ch.name, res.data.id); results.push({ type: "channel", name: ch.name, status: "created" }); }
     else results.push({ type: "channel", name: ch.name, status: `error ${res.status}: ${JSON.stringify(res.data).slice(0,100)}` });
   }
-  // AutoMod + welcome
   const am = await createAutoModRules(token, guildId);
   for (const r of am) results.push({ type: "automod", name: r.name, status: r.status });
   const w = await postWelcome(token, guildId, channelMap);
   results.push({ type: "welcome", name: "welcome message", status: w.status });
   return results;
-}
-
-
-
-export async function createAutoModRules(token, guildId) {
-  const rules = [
-    { name: "VF - Mention spam", event_type: 1, trigger_type: 5, trigger_metadata: { mention_total_limit: 5 }, actions: [{ type: 1 }], enabled: true },
-    { name: "VF - Repeated messages", event_type: 1, trigger_type: 3, trigger_metadata: { mention_raid_protection_enabled: false }, actions: [{ type: 1 }], enabled: true },
-    { name: "VF - Suspicious links", event_type: 1, trigger_type: 1, trigger_metadata: { keyword_filter: ["discord.gg/", "bit.ly/", "tinyurl.com/"] }, actions: [{ type: 1 }], enabled: true },
-  ];
-  const results = [];
-  for (const r of rules) {
-    const res = await discordFetch(`/guilds/${guildId}/auto-moderation/rules`, token, { method: "POST", body: JSON.stringify(r) });
-    results.push({ name: r.name, status: res.status === 200 || res.status === 201 ? "created" : `error ${res.status}` });
-  }
-  return results;
-}
-
-export async function postWelcome(token, guildId, channelMap) {
-  const welcomeId = channelMap.get("welcome");
-  if (!welcomeId) return { status: "no welcome channel" };
-  const { data: msgs } = await discordFetch(`/channels/${welcomeId}/messages?limit=5`, token);
-  const already = Array.isArray(msgs) && msgs.some((m) => (m.content || "").includes("VANTA FIBER - WELCOME"));
-  if (already) return { status: "exists" };
-  const content = "VANTA FIBER - WELCOME\n\nWelcome to Vanta Fiber: 1000x Fibercraft PvP on Xbox and Windows Microsoft Store ARK: Survival Evolved.\n\nRules, join instructions, role selection and support are in the channels below. Season Zero is live. Read announcements and wipe-calendar.\n\nNo fake counts, no pay-to-win. Fair play is enforced.";
-  const res = await discordFetch(`/channels/${welcomeId}/messages`, token, { method: "POST", body: JSON.stringify({ content }) });
-  return { status: res.status === 200 || res.status === 201 ? "posted" : `error ${res.status}` };
 }
 
 export async function setupAudit(token, guildId) {
@@ -162,4 +129,35 @@ export async function setupAudit(token, guildId) {
   const missingChannels = BLUEPRINT.channels.filter((c) => !channelNames.has(c.name)).map((c) => c.name);
   const missingRoles = BLUEPRINT.roles.filter((r) => !roleNames.has(r.name)).map((r) => r.name);
   return { missingChannels, missingRoles, totalChannels: channels.length, totalRoles: roles.length };
+}
+
+export async function createAutoModRules(token, guildId) {
+  const desired = [
+    { name: "VF - Mention spam", event_type: 1, trigger_type: 5, trigger_metadata: { mention_total_limit: 5 }, actions: [{ type: 1 }], enabled: true },
+    { name: "VF - Suspicious links", event_type: 1, trigger_type: 1, trigger_metadata: { keyword_filter: ["discord.gg/", "bit.ly/", "tinyurl.com/"] }, actions: [{ type: 1 }], enabled: true },
+  ];
+  const { data: existing } = await discordFetch(`/guilds/${guildId}/auto-moderation/rules`, token);
+  const existingByName = new Map((Array.isArray(existing) ? existing : []).map((r) => [r.name, r.id]));
+  const results = [];
+  for (const r of desired) {
+    if (existingByName.has(r.name)) { results.push({ name: r.name, status: "exists" }); continue; }
+    const res = await discordFetch(`/guilds/${guildId}/auto-moderation/rules`, token, { method: "POST", body: JSON.stringify(r) });
+    results.push({ name: r.name, status: res.status === 200 || res.status === 201 ? "created" : `error ${res.status}` });
+  }
+  return results;
+}
+
+export async function postWelcome(token, guildId, channelMap) {
+  const welcomeId = channelMap.get("welcome");
+  if (!welcomeId) return { status: "no welcome channel" };
+  const { data: msgs } = await discordFetch(`/channels/${welcomeId}/messages?limit=10`, token);
+  const marker = "VANTA FIBER - WELCOME";
+  const existing = Array.isArray(msgs) ? msgs.find((m) => (m.content || "").includes(marker)) : null;
+  const content = "VANTA FIBER - WELCOME\n\nWelcome to Vanta Fiber: 1000x Fibercraft PvP on Xbox and Windows Microsoft Store ARK: Survival Evolved.\n\nRules, join instructions, role selection and support are in the channels below. Season Zero is live. Read announcements and wipe-calendar.\n\nNo fake counts, no pay-to-win. Fair play is enforced.";
+  if (existing) {
+    const res = await discordFetch(`/channels/${welcomeId}/messages/${existing.id}`, token, { method: "PATCH", body: JSON.stringify({ content }) });
+    return { status: res.status === 200 ? "edited" : `error ${res.status}` };
+  }
+  const res = await discordFetch(`/channels/${welcomeId}/messages`, token, { method: "POST", body: JSON.stringify({ content }) });
+  return { status: res.status === 200 || res.status === 201 ? "posted" : `error ${res.status}` };
 }

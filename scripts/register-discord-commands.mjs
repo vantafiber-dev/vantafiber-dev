@@ -6,12 +6,14 @@ const guildId = process.env.DISCORD_GUILD_ID ?? "1571076052556582913";
 
 if (!token) { console.error("Set DISCORD_BOT_TOKEN"); process.exit(1); }
 
+const userOption = (name, desc, required = true) => ({ name, description: desc, type: 6, required });
+
 const commands = [
   { name: "status", description: "Show server status" },
   { name: "join", description: "Join waitlist info" },
-  { name: "report", description: "File a report" },
-  { name: "ban", description: "Ban a player (moderator)" },
-  { name: "mute", description: "Mute a player (moderator)" },
+  { name: "report", description: "File a report", options: [ { name: "subject", description: "Report subject", type: 3, required: true } ] },
+  { name: "ban", description: "Ban a player (moderator)", options: [ userOption("user", "Target user") ] },
+  { name: "mute", description: "Mute/timeout a player (moderator)", options: [ userOption("user", "Target user") ] },
   { name: "setup", description: "Server setup and audit", options: [
     { name: "preview", description: "Preview setup changes", type: 1 },
     { name: "apply", description: "Apply setup (owner only)", type: 1 },
@@ -19,7 +21,7 @@ const commands = [
     { name: "repair", description: "Repair missing items (owner only)", type: 1 },
   ] },
   { name: "vanta", description: "Owner control center" },
-  { name: "ticket", description: "Open a support ticket" },
+  { name: "ticket", description: "Open a support ticket", options: [ { name: "subject", description: "Ticket subject", type: 3, required: true } ] },
   { name: "mod", description: "Moderation case (staff)" },
   { name: "event", description: "Event info and registration" },
   { name: "ark", description: "ARK cluster status (staff)" },
