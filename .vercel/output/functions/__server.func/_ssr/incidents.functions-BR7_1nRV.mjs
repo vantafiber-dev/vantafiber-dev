@@ -1,0 +1,61 @@
+import { t as createServerRpc } from "./createServerRpc-4IU9UdN_.mjs";
+import { i as createServerFn } from "./ssr.mjs";
+import { un as _enum, vn as object, xn as string } from "../_libs/@better-auth/core+[...].mjs";
+import { t as authMiddleware } from "./middleware-CgpHtsdn.mjs";
+import { r as getSql } from "./db-DwzSV9wp.mjs";
+// node_modules/.nitro/vite/services/ssr/assets/incidents.functions-BR7_1nRV.js
+var openInput = object({
+	title: string().min(1),
+	severity: _enum([
+		"low",
+		"medium",
+		"high",
+		"critical"
+	])
+});
+object({ id: string().min(1) });
+var noteInput = object({
+	id: string().min(1),
+	note: string().min(1)
+});
+function newId() {
+	return `inc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+var listIncidentsFn_createServerFn_handler = createServerRpc({
+	id: "3e0267ea90f34cc1337f887a78337e1acd77945bd21eb8124278183b1024988d",
+	name: "listIncidentsFn",
+	filename: "src/lib/vanta/incidents.functions.ts"
+}, (opts) => listIncidentsFn.__executeServer(opts));
+var listIncidentsFn = createServerFn({ method: "GET" }).middleware([authMiddleware]).handler(listIncidentsFn_createServerFn_handler, async () => {
+	return await (await getSql())`select * from vanta_incidents order by started_at desc`;
+});
+var openIncidentFn_createServerFn_handler = createServerRpc({
+	id: "b000890ee7ab75bed70ac9fd1a0e351b7fb4d660473e7dc9ab76289cef59ecdc",
+	name: "openIncidentFn",
+	filename: "src/lib/vanta/incidents.functions.ts"
+}, (opts) => openIncidentFn.__executeServer(opts));
+var openIncidentFn = createServerFn({ method: "POST" }).middleware([authMiddleware]).validator(openInput).handler(openIncidentFn_createServerFn_handler, async ({ data }) => {
+	const sql = await getSql();
+	const id = newId();
+	await sql`insert into vanta_incidents (id, title, severity) values (${id}, ${data.title}, ${data.severity})`;
+	return { id };
+});
+var mitigateIncidentFn_createServerFn_handler = createServerRpc({
+	id: "a1a394d840eadbfd5a101d51dfd65950fe697f3b26933c298aea36fcb38a075d",
+	name: "mitigateIncidentFn",
+	filename: "src/lib/vanta/incidents.functions.ts"
+}, (opts) => mitigateIncidentFn.__executeServer(opts));
+var mitigateIncidentFn = createServerFn({ method: "POST" }).middleware([authMiddleware]).validator(noteInput).handler(mitigateIncidentFn_createServerFn_handler, async ({ data }) => {
+	if ((await (await getSql())`update vanta_incidents set status='mitigating', notes = notes || ${JSON.stringify([data.note])}::jsonb where id=${data.id} returning id`).length === 0) throw new Error("Mitigate failed.");
+	return { ok: true };
+});
+var resolveIncidentFn_createServerFn_handler = createServerRpc({
+	id: "47bf9a766635e875e2534c089c550fa7f90a18cf472844d10c02d994a3a263d0",
+	name: "resolveIncidentFn",
+	filename: "src/lib/vanta/incidents.functions.ts"
+}, (opts) => resolveIncidentFn.__executeServer(opts));
+var resolveIncidentFn = createServerFn({ method: "POST" }).middleware([authMiddleware]).validator(noteInput).handler(resolveIncidentFn_createServerFn_handler, async ({ data }) => {
+	if ((await (await getSql())`update vanta_incidents set status='resolved', resolved_at=now(), notes = notes || ${JSON.stringify([data.note])}::jsonb where id=${data.id} returning id`).length === 0) throw new Error("Resolve failed.");
+	return { ok: true };
+});
+export { listIncidentsFn_createServerFn_handler, mitigateIncidentFn_createServerFn_handler, openIncidentFn_createServerFn_handler, resolveIncidentFn_createServerFn_handler };

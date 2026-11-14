@@ -1,0 +1,1 @@
+# Vanta Fiber - Market landscape (draft)\n\nOwner-gated: live competitor research requires browsing; this is a structural placeholder. Sections: competitors, position map, opportunity gaps, policy gates.\n

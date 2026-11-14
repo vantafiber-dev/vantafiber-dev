@@ -1,0 +1,4 @@
+[gateway] starting
+[gateway] connected
+[gateway] READY 
+[gateway] GUILD_CREATE 1571076052556582913

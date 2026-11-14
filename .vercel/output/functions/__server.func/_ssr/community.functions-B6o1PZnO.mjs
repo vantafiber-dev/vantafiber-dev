@@ -1,0 +1,78 @@
+import { t as createServerRpc } from "./createServerRpc-4IU9UdN_.mjs";
+import { i as createServerFn } from "./ssr.mjs";
+import { vn as object, xn as string } from "../_libs/@better-auth/core+[...].mjs";
+import { t as authMiddleware } from "./middleware-CgpHtsdn.mjs";
+import { r as getSql } from "./db-DwzSV9wp.mjs";
+// node_modules/.nitro/vite/services/ssr/assets/community.functions-B6o1PZnO.js
+var lfgInput = object({
+	region: string().min(1),
+	mode: string().min(1),
+	title: string().min(1),
+	note: string().min(1)
+});
+var ticketInput = object({
+	category: string().min(1),
+	subject: string().min(1),
+	body: string().min(1)
+});
+var idInput = object({ id: string().min(1) });
+function newId(p) {
+	return `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+var listLfgFn_createServerFn_handler = createServerRpc({
+	id: "cb3387baa86a84cf12c1d4ec3d04e898afb3c13d6be3a86af5ab118270803f18",
+	name: "listLfgFn",
+	filename: "src/lib/vanta/community.functions.ts"
+}, (opts) => listLfgFn.__executeServer(opts));
+var listLfgFn = createServerFn({ method: "GET" }).middleware([authMiddleware]).handler(listLfgFn_createServerFn_handler, async () => {
+	return await (await getSql())`select * from vanta_lfg_posts order by created_at desc`;
+});
+var createLfgFn_createServerFn_handler = createServerRpc({
+	id: "32ee273f4797324763d25ac978942e72db12ebc02bd32b0fdf6dccf997716386",
+	name: "createLfgFn",
+	filename: "src/lib/vanta/community.functions.ts"
+}, (opts) => createLfgFn.__executeServer(opts));
+var createLfgFn = createServerFn({ method: "POST" }).middleware([authMiddleware]).validator(lfgInput).handler(createLfgFn_createServerFn_handler, async ({ data, context }) => {
+	const sql = await getSql();
+	const id = newId("lfg");
+	await sql`insert into vanta_lfg_posts (id, player_id, region, mode, title, note) values (${id}, ${context.userId}, ${data.region}, ${data.mode}, ${data.title}, ${data.note})`;
+	return { id };
+});
+var closeLfgFn_createServerFn_handler = createServerRpc({
+	id: "496372f9e35c21cacabaf4d56ddd2040ef7b946483cc472406803fc32d37943c",
+	name: "closeLfgFn",
+	filename: "src/lib/vanta/community.functions.ts"
+}, (opts) => closeLfgFn.__executeServer(opts));
+var closeLfgFn = createServerFn({ method: "POST" }).middleware([authMiddleware]).validator(idInput).handler(closeLfgFn_createServerFn_handler, async ({ data, context }) => {
+	if ((await (await getSql())`update vanta_lfg_posts set status='closed' where id=${data.id} and player_id=${context.userId} returning id`).length === 0) throw new Error("Close failed.");
+	return { ok: true };
+});
+var listTicketsFn_createServerFn_handler = createServerRpc({
+	id: "241bdab38cf064d9b8d59f91abe25dad97a60cb45a24892d187ea920f7265505",
+	name: "listTicketsFn",
+	filename: "src/lib/vanta/community.functions.ts"
+}, (opts) => listTicketsFn.__executeServer(opts));
+var listTicketsFn = createServerFn({ method: "GET" }).middleware([authMiddleware]).handler(listTicketsFn_createServerFn_handler, async ({ context }) => {
+	return await (await getSql())`select * from vanta_tickets where player_id=${context.userId} order by created_at desc`;
+});
+var createTicketFn_createServerFn_handler = createServerRpc({
+	id: "e999b495cd926bbf8aea30ae07e4e39d71e68e5f65b79287044ac29b1f9b2a81",
+	name: "createTicketFn",
+	filename: "src/lib/vanta/community.functions.ts"
+}, (opts) => createTicketFn.__executeServer(opts));
+var createTicketFn = createServerFn({ method: "POST" }).middleware([authMiddleware]).validator(ticketInput).handler(createTicketFn_createServerFn_handler, async ({ data, context }) => {
+	const sql = await getSql();
+	const id = newId("ticket");
+	await sql`insert into vanta_tickets (id, player_id, category, subject, body) values (${id}, ${context.userId}, ${data.category}, ${data.subject}, ${data.body})`;
+	return { id };
+});
+var resolveTicketFn_createServerFn_handler = createServerRpc({
+	id: "cb588b8e445d66a526e2b17351f3e33a61b649e3e47292d5a0bd4817d0b3c5ac",
+	name: "resolveTicketFn",
+	filename: "src/lib/vanta/community.functions.ts"
+}, (opts) => resolveTicketFn.__executeServer(opts));
+var resolveTicketFn = createServerFn({ method: "POST" }).middleware([authMiddleware]).validator(idInput).handler(resolveTicketFn_createServerFn_handler, async ({ data }) => {
+	if ((await (await getSql())`update vanta_tickets set status='resolved' where id=${data.id} returning id`).length === 0) throw new Error("Resolve failed.");
+	return { ok: true };
+});
+export { closeLfgFn_createServerFn_handler, createLfgFn_createServerFn_handler, createTicketFn_createServerFn_handler, listLfgFn_createServerFn_handler, listTicketsFn_createServerFn_handler, resolveTicketFn_createServerFn_handler };

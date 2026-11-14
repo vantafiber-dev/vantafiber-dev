@@ -1,0 +1,9 @@
+ID,Section,User Outcome,Priority,Dependency IDs,Risk,Owner,Implementation Path,Acceptance Scenario,Evidence Path,Release Target,Disposition
+VF-001,0,Trust that the Xbox/Microsoft Store ASE distinction is respected across all claims,1,,Founder,docs/PLATFORM-COMPATIBILITY.md,Verify no Steam/ASA-only path ships,not_run,0.1.0,committed
+VF-002,1,Players can discover the right server and join,1,,Founder,src/routes/join.tsx /src/routes/index.tsx,Join Compass end-to-end in fixture mode,not_run,0.1.0,committed
+VF-003,2,Players receive a resolvable report-to-resolution path,2,,Founder,docs/SUPPORT-RUNBOOK.md,Permission + isolation + audit tests,not_run,0.1.0,committed
+VF-004,4,Staff can deliver an approved public update once,2,,Founder,docs/RELEASE-MANIFEST.json,State transition + cache + duplicate-delivery tests,not_run,0.1.0,committed
+VF-005,5,Free-first community path works without credentials,2,,Founder,src/routes/index.tsx /src/lib/vanta/waitlist.ts,Waitlist validation + consent tests,not_run,0.1.0,committed
+VF-006,6,Revenue only after legal/platform gates,3,,Founder,docs/FINANCIAL-MODEL.md,Checkout stays disabled until compliance signoff,not_run,0.1.0,blocked
+VF-007,12,Anti-cheat escalates through human sign-off,3,,Founder,docs/SUPPORT-RUNBOOK.md,No automatic permanent ban,not_run,0.1.0,committed
+VF-008,35,Wipe transition is rehearsed before approval,3,,Founder,docs/RECOVERY.md,Wipe rehearsal evidence,not_run,0.1.0,committed

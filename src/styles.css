@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #07090c;
+  --color-surface: #10161d;
+  --color-raised: #17202a;
+  --color-line: #2a3a4a;
+  --color-fg: #e7eef6;
+  --color-muted: #8ea0b5;
+  --color-accent: #3ee0c7;
+  --color-accent-ink: #06221e;
+  --color-alert: #e3a008;
+  --color-danger: #d46565;
+  /* Vanta Fiber art direction tokens (basalt / floodlight / signal orange). */
+  --color-vanta-basalt: #0b0d11;
+  --color-vanta-slate: #151922;
+  --color-vanta-ash: #f1f3f5;
+  --color-vanta-muted: #aab3c2;
+  --color-vanta-ember: #ff7548;
+  --color-vanta-signal: #79c1ff;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --radius: 0.5rem;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+  }
+}
+
+@layer components {
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius);
+  }
+
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

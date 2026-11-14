@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "updated": "2026-11-14",
+  "status": "draft",
+  "releases": [
+    {
+      "id": "vanta-fiber-0.1.0-phase0",
+      "name": "Phase 0 — Foundation landing slice",
+      "feature": "Public landing page, waitlist, status board, season/fair-play/help pages",
+      "routes": ["/", "/join", "/status", "/seasons", "/fair-play", "/help"],
+      "userRole": "public",
+      "dependencies": ["VANTA brand tokens"],
+      "unitEvidence": ["src/lib/vanta/waitlist.test.ts", "src/lib/vanta/capabilities.test.ts"],
+      "integrationEvidence": ["scripts/vanta-smoke.mjs"],
+      "browserEvidence": ["desktop", "mobile"],
+      "liveCapabilityStatus": "unverified",
+      "knownLimitation": "Fixture waitlist store; no live hosting, Discord, provider or payment capability.",
+      "operatorFallback": "Local fixture mode with explicit DEMO labels.",
+      "nextValidation": "Owner credentials for Discord/Nitrado/payment when authorised."
+    }
+  ]
+}

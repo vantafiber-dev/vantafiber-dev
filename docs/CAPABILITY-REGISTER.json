@@ -1,0 +1,49 @@
+{
+  "version": "0.1.0",
+  "updated": "2026-11-14",
+  "source": "Vanta_Fiber_OpenCode_Master_Prompt_v2 (1).md",
+  "capabilities": [
+    {
+      "id": "join.waitlist",
+      "label": "Public waitlist capture (local demo store)",
+      "status": "manual_fallback",
+      "detail": "Local browser demo store until the durable waitlist backend is provisioned."
+    },
+    {
+      "id": "join.how-to-play",
+      "label": "How-to-join instructions for Xbox + Windows Store clients",
+      "status": "requires_xbox_test",
+      "detail": "Written guidance drafts only; actual join path verified on real clients at launch."
+    },
+    {
+      "id": "server.status",
+      "label": "Live server status board",
+      "status": "requires_xbox_test",
+      "detail": "No hosting capacity purchased yet; public board shows placeholder states."
+    },
+    {
+      "id": "config.prototype",
+      "label": "Xbox ASE Game.ini / GameUserSettings.ini prototype profiles",
+      "status": "manual_fallback",
+      "detail": "Local config lint + diff tooling; live engine behaviour unverified."
+    },
+    {
+      "id": "provider.nitrado.adapter",
+      "label": "Nitrado Xbox ASE provider adapter",
+      "status": "requires_provider_approval",
+      "detail": "Adapter implemented against documented surface; live calls gated on owner credentials."
+    },
+    {
+      "id": "commerce.checkout",
+      "label": "Hosted payment checkout + fulfilment",
+      "status": "prohibited",
+      "detail": "Disabled pending Microsoft/Xbox Services Agreement, Wildcard, Nitrado, Discord and legal review."
+    },
+    {
+      "id": "anti_cheat.ban",
+      "label": "Automatic permanent ban enforcement",
+      "status": "manual_fallback",
+      "detail": "Detection families designed for authorised telemetry only; severe bans need human sign-off."
+    }
+  ]
+}

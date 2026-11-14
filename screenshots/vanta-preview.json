@@ -1,0 +1,125 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "results": {
+    "desktop:home": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1989,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin\nStatus\nSeasons\nFair Play\nHelp\nJoin the ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-desktop-home.png"
+    },
+    "desktop:join": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1279,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin\nStatus\nSeasons\nFair Play\nHelp\nJoin the ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-desktop-join.png"
+    },
+    "desktop:status": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1924,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin\nStatus\nSeasons\nFair Play\nHelp\nJoin the ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-desktop-status.png"
+    },
+    "desktop:seasons": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1281,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin\nStatus\nSeasons\nFair Play\nHelp\nJoin the ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-desktop-seasons.png"
+    },
+    "desktop:fair-play": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1518,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin\nStatus\nSeasons\nFair Play\nHelp\nJoin the ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-desktop-fair-play.png"
+    },
+    "desktop:help": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1203,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin\nStatus\nSeasons\nFair Play\nHelp\nJoin the ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-desktop-help.png"
+    },
+    "mobile:home": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1954,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin the waitlist\n\nXBOX - MICROSOFT STORE - ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-mobile-home.png"
+    },
+    "mobile:join": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1244,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin the waitlist\n\nJOIN COMPASS - SEASON ZER",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-mobile-join.png"
+    },
+    "mobile:status": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1889,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin the waitlist\n\nSTATUS BOARD - CAPABILITY",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-mobile-status.png"
+    },
+    "mobile:seasons": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1246,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin the waitlist\n\nSEASON BRIEFING - SEASON ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-mobile-seasons.png"
+    },
+    "mobile:fair-play": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1483,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin the waitlist\n\nFAIR PLAY - TRUST CENTRE\n",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-mobile-fair-play.png"
+    },
+    "mobile:help": {
+      "status": 200,
+      "title": "Vanta Fiber",
+      "bodyTextLen": 1168,
+      "bodyTextPrefix": "SEASON ZERO - XBOX ASE\n\nVanta Fiber\nJoin the waitlist\n\nHELP CENTRE\n\nHelp, report",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "C:\\Users\\PlayNexus\\app-builder-workspace\\screenshots\\vanta-preview-mobile-help.png"
+    }
+  }
+}
