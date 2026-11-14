@@ -153,3 +153,13 @@ export async function postWelcome(token, guildId, channelMap) {
   const res = await discordFetch(`/channels/${welcomeId}/messages`, token, { method: "POST", body: JSON.stringify({ content }) });
   return { status: res.status === 200 || res.status === 201 ? "posted" : `error ${res.status}` };
 }
+
+export async function setupAudit(token, guildId) {
+  const { data: channels } = await discordFetch(`/guilds/${guildId}/channels`, token);
+  const { data: roles } = await discordFetch(`/guilds/${guildId}/roles`, token);
+  const channelNames = new Set(channels.map((c) => c.name));
+  const roleNames = new Set(roles.map((r) => r.name));
+  const missingChannels = BLUEPRINT.channels.filter((c) => !channelNames.has(c.name)).map((c) => c.name);
+  const missingRoles = BLUEPRINT.roles.filter((r) => !roleNames.has(r.name)).map((r) => r.name);
+  return { missingChannels, missingRoles, totalChannels: channels.length, totalRoles: roles.length };
+}
