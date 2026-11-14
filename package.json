@@ -19,7 +19,9 @@
     "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/app-data/app-data.test.ts src/lib/app-data/readiness-schedule.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/sign-in-gate.test.ts src/lib/preview-path-prefix.test.ts src/lib/vanta/anti-cheat.test.ts src/lib/vanta/audit-log.test.ts src/lib/vanta/capabilities.test.ts src/lib/vanta/commerce.test.ts src/lib/vanta/community.test.ts src/lib/vanta/config-compiler.test.ts src/lib/vanta/discord-blueprint.test.ts src/lib/vanta/discord-commands.test.ts src/lib/vanta/discord-handler.test.ts src/lib/vanta/events.test.ts src/lib/vanta/incidents.test.ts src/lib/vanta/members.test.ts src/lib/vanta/reports.test.ts src/lib/vanta/waitlist.test.ts src/lib/vanta/wipe-rehearsal.test.ts src/lib/omeil/engine.test.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "start:hosting": "node scripts/start-bot-hosting.mjs"
+    "start:hosting": "npm install && npm run start:hosting:run",
+    "start:hosting:run": "node scripts/start-bot-hosting.mjs",
+    "start": "node scripts/start-bot-hosting.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
