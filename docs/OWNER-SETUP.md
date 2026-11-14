@@ -60,3 +60,7 @@ Installation URL: https://discord.com/api/oauth2/authorize?client_id=15710747070
 ## Discord gateway worker
 
 Gateway worker verified: connects, READY received, guild 1571076052556582913 loaded. Run with DISCORD_BOT_TOKEN in env.
+
+## Bot permissions fix
+
+If /setup apply reports errors, grant the bot's role (Vanta Bot) Manage Channels and Manage Roles in Server Settings -> Roles. Then re-run /setup apply (idempotent).

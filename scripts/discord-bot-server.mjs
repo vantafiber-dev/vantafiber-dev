@@ -65,7 +65,8 @@ async function handleCommand(interaction) {
         const created = results.filter((r) => r.status === "created").length;
         const existing = results.filter((r) => r.status === "exists").length;
         const errors = results.filter((r) => r.status.startsWith("error")).length;
-        return { type: 4, data: { content: `Setup apply complete: ${created} created, ${existing} already present, ${errors} errors.` } };
+        const am = results.filter((r) => r.type === "automod");
+        return { type: 4, data: { content: `Setup apply complete: ${created} created, ${existing} already present, ${errors} errors. AutoMod rules: ${am.map((r) => r.status).join(", ")}.` } };
       }
       if (sub === "audit") {
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
