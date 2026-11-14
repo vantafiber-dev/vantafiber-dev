@@ -30,11 +30,14 @@ export async function migrate() {
     `create table if not exists vanta_reports (id text primary key, guild_id text not null, user_id text not null, subject text not null, status text not null default 'open', created_at timestamptz not null default now())`,
     `create table if not exists vanta_setup_jobs (id text primary key, guild_id text not null, owner_id text not null, status text not null default 'pending', expires_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now(), result text)`,
     `create table if not exists vanta_welcome_messages (guild_id text primary key, message_id text not null, channel_id text not null, updated_at timestamptz not null default now())`,
-    `create table if not exists vanta_audit (id serial primary key, guild_id text, actor text, action text, target text, detail text, created_at timestamptz not null default now())`,
+    `create table if not exists vanta_audit (id serial primary key, guild_id text, actor text, action text, target text, detail text, created_at timestamptz not null default now())
+    ,
+`,
   ];
   for (const stmt of statements) {
     await p.query(stmt);
   }
+  await p.query(`create table if not exists vanta_events (id text primary key, slug text not null, title text not null, format text not null, status text not null, starts_at timestamptz not null, ends_at timestamptz not null, capacity integer not null, region text not null, host text not null, rules_version text not null)`);
   console.log("[db] migrations applied");
 }
 
