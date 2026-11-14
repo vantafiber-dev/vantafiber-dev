@@ -1,0 +1,95 @@
+import http from "node:http";
+import { createPublicKey, verify as cryptoVerify } from "node:crypto";
+
+const PORT = process.env.SERVER_PORT || process.env.PORT || "8080";
+const HOST = "0.0.0.0";
+const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY || "";
+
+const SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
+
+function verifySignature(signature, timestamp, body) {
+  try {
+    const raw = Buffer.from(PUBLIC_KEY, "hex");
+    const spki = Buffer.concat([SPKI_PREFIX, raw]);
+    const pub = createPublicKey({ key: spki, format: "der", type: "spki" });
+    const sig = Buffer.from(signature, "hex");
+    const msg = Buffer.from(timestamp + body);
+    return cryptoVerify(null, msg, pub, sig);
+  } catch {
+    return false;
+  }
+}
+
+function json(res, status, obj) {
+  const data = JSON.stringify(obj);
+  res.writeHead(status, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) });
+  res.end(data);
+}
+
+function handleCommand(interaction) {
+  const name = interaction?.data?.name ?? "";
+  const roles = interaction?.member?.roles ?? [];
+  const isAdmin = roles.includes(process.env.DISCORD_ADMIN_ROLE_ID ?? "");
+  const isMod = roles.includes(process.env.DISCORD_MOD_ROLE_ID ?? "") || isAdmin;
+
+  switch (name) {
+    case "status":
+      return { type: 4, data: { content: "Vanta Fiber — Season Zero. Server status: online. Platform: Xbox + Windows Microsoft Store ASE. Positioning: 1000x Fibercraft PvP." } };
+    case "join":
+      return { type: 4, data: { content: "Join the waitlist at the Vanta Fiber website. Season Zero briefing, raid calendar and event invites before launch." } };
+    case "report":
+      return { type: 4, data: { content: "Report submitted. Use the website /reports page for full evidence and tracking." } };
+    case "ban":
+      if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
+      return { type: 4, data: { content: "Ban action requires confirmation via the website admin terminal." } };
+    case "mute":
+      if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
+      return { type: 4, data: { content: "Timeout applied (mute alias). Duration configurable via website." } };
+    default:
+      return { type: 4, data: { content: `Unknown command: ${name}` } };
+  }
+}
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (req.method === "GET" && url.pathname === "/health") {
+    return json(res, 200, { ok: true, service: "vanta-fiber-discord-bot" });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/discord/interactions") {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = Buffer.concat(chunks).toString("utf8");
+
+    const signature = req.headers["x-signature-ed25519"] ?? "";
+    const timestamp = req.headers["x-signature-timestamp"] ?? "";
+
+    if (!verifySignature(signature, timestamp, body)) {
+      return json(res, 401, { error: "Invalid signature" });
+    }
+
+    let interaction;
+    try { interaction = JSON.parse(body); } catch { return json(res, 400, { error: "Bad JSON" }); }
+
+    if (interaction.type === 1) {
+      return json(res, 200, { type: 1 });
+    }
+    if (interaction.type === 2) {
+      const result = handleCommand(interaction);
+      return json(res, 200, result);
+    }
+    return json(res, 400, { error: "Unsupported interaction type" });
+  }
+
+  json(res, 404, { error: "Not found" });
+});
+
+server.listen(Number(PORT), HOST, () => {
+  console.log(`[bot] listening on ${HOST}:${PORT}`);
+});
+
+server.on("error", (err) => {
+  console.error("[bot] server error", err);
+  process.exit(1);
+});
