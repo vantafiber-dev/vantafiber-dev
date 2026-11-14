@@ -8,6 +8,13 @@ const HOST = "0.0.0.0";
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY || "";
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "";
+const APP_ID = process.env.DISCORD_CLIENT_ID || "1571074707053215824";
+const OWNER_ID = process.env.DISCORD_OWNER_ID || "";
+
+const MODERATE = 1n << 40n;
+const KICK = 1n << 1n;
+const BAN = 1n << 2n;
+const ADMIN = 1n << 3n;
 
 const SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
@@ -30,12 +37,40 @@ function json(res, status, obj) {
   res.end(data);
 }
 
+async function isOwner(interaction) {
+  const userId = interaction?.member?.user?.id ?? interaction?.user?.id;
+  if (OWNER_ID && userId === OWNER_ID) return true;
+  // fetch guild owner
+  try {
+    const r = await fetch(`https://discord.com/api/v10/guilds/${interaction.guild_id}`, { headers: { Authorization: `Bot ${BOT_TOKEN}` } });
+    const g = await r.json();
+    return g.owner_id === userId;
+  } catch {
+    return false;
+  }
+}
+
+function hasPerm(interaction, bit) {
+  const perms = BigInt(interaction?.member?.permissions ?? "0");
+  return (perms & bit) === bit || (perms & ADMIN) === ADMIN;
+}
+
+async function followup(interactionToken, content) {
+  try {
+    await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${interactionToken}/messages/@original`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+  } catch {}
+}
+
 async function handleCommand(interaction) {
   const name = interaction?.data?.name ?? "";
   const roles = interaction?.member?.roles ?? [];
-  const perms = BigInt(interaction?.member?.permissions ?? "0");
-  const isAdmin = (perms & 8n) === 8n || roles.includes(process.env.DISCORD_ADMIN_ROLE_ID ?? "");
-  const isMod = (perms & 2n) === 2n || roles.includes(process.env.DISCORD_MOD_ROLE_ID ?? "") || isAdmin;
+  const isMod = hasPerm(interaction, MODERATE) || hasPerm(interaction, KICK) || hasPerm(interaction, BAN);
+  const isAdmin = hasPerm(interaction, ADMIN);
+  const owner = await isOwner(interaction);
   const guildId = interaction.guild_id || GUILD_ID;
   const userId = interaction?.member?.user?.id ?? interaction?.user?.id ?? "unknown";
 
@@ -63,13 +98,16 @@ async function handleCommand(interaction) {
       if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
       const targetId = interaction?.data?.options?.[0]?.value;
       if (!targetId) return { type: 4, data: { content: "Missing target user.", flags: 64 } };
-      const until = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const durationOpt = interaction?.data?.options?.[1]?.value;
+      const minutes = Math.min(Math.max(Number(durationOpt) || 10, 1), 10080);
+      const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+      const reason = interaction?.data?.options?.[2]?.value ?? "No reason provided";
       const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${targetId}`, {
         method: "PATCH",
-        headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bot ${BOT_TOKEN}`, "Content-Type": "application/json" },
         body: JSON.stringify({ communication_disabled_until: until }),
       });
-      if (res.status === 200) return { type: 4, data: { content: "Timed out <@" + targetId + "> for 10 minutes." } };
+      if (res.status === 200) return { type: 4, data: { content: "Timed out <@" + targetId + "> for " + minutes + " minutes. Reason: " + reason } };
       return { type: 4, data: { content: "Timeout failed (HTTP " + res.status + ").", flags: 64 } };
     }
     case "setup": {
@@ -80,14 +118,19 @@ async function handleCommand(interaction) {
         return { type: 4, data: { content: "Setup preview: " + preview.rolesToCreate.length + " roles, " + preview.categoriesToCreate.length + " categories, " + preview.channelsToCreate.length + " channels to create. Already present: " + preview.alreadyPresent + "." } };
       }
       if (sub === "apply") {
-        if (!isAdmin) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
+        if (!owner) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
-        const results = await setupApply(BOT_TOKEN, guildId);
-        const created = results.filter((r) => r.status === "created").length;
-        const existing = results.filter((r) => r.status === "exists").length;
-        const errors = results.filter((r) => r.status.startsWith("error")).length;
-        const am = results.filter((r) => r.type === "automod");
-        return { type: 4, data: { content: "Setup apply complete: " + created + " created, " + existing + " already present, " + errors + " errors. AutoMod: " + am.map((r) => r.status).join(", ") + "." } };
+        // defer
+        const token = interaction.token;
+        (async () => {
+          const results = await setupApply(BOT_TOKEN, guildId);
+          const created = results.filter((r) => r.status === "created").length;
+          const existing = results.filter((r) => r.status === "exists").length;
+          const errors = results.filter((r) => r.status.startsWith("error")).length;
+          const am = results.filter((r) => r.type === "automod");
+          await followup(token, "Setup apply complete: " + created + " created, " + existing + " already present, " + errors + " errors. AutoMod: " + am.map((r) => r.status).join(", ") + ".");
+        })();
+        return { type: 5 };
       }
       if (sub === "audit") {
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
@@ -95,16 +138,20 @@ async function handleCommand(interaction) {
         return { type: 4, data: { content: "Audit: " + audit.missingRoles.length + " missing roles, " + audit.missingChannels.length + " missing channels. Total roles: " + audit.totalRoles + ", channels: " + audit.totalChannels + "." } };
       }
       if (sub === "repair") {
-        if (!isAdmin) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
+        if (!owner) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
-        const results = await setupApply(BOT_TOKEN, guildId);
-        const created = results.filter((r) => r.status === "created").length;
-        return { type: 4, data: { content: "Repair complete: " + created + " items created/repaired." } };
+        const token = interaction.token;
+        (async () => {
+          const results = await setupApply(BOT_TOKEN, guildId);
+          const created = results.filter((r) => r.status === "created").length;
+          await followup(token, "Repair complete: " + created + " items created/repaired.");
+        })();
+        return { type: 5 };
       }
       return { type: 4, data: { content: "Unknown setup subcommand." } };
     }
     case "vanta":
-      if (!isAdmin) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
+      if (!owner) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
       return { type: 4, data: { content: "VANTA CORE — Overview: Discord bot online, gateway connected, interactions verified. Use /setup audit for infrastructure status." } };
     case "ticket": {
       const subject = (interaction?.data?.options?.[0]?.value ?? "support").toString();
