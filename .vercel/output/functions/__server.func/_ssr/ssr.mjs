@@ -3,12 +3,10 @@ import { At as waitForReason, Bt as rootRouteId, Dt as getStylesheetHref, Et as 
 import { a as splitSetCookieString, c as createRawStreamRPCPlugin, d as toCrossJSONAsync, f as toCrossJSONStream, h as createSerializationAdapter, i as serialize, l as defaultSerovalDeserializerPlugins, n as mergeHeaders, o as attachRouterServerSsrUtils, r as parseSetCookie, s as getNormalizedURL, t as json, u as makeSerovalPlugin } from "../_libs/@tanstack/router-core+[...].mjs";
 import { t as fromJSON } from "../_libs/seroval.mjs";
 import { n as createServerHistory } from "../_libs/tanstack__history.mjs";
-import { createRequire } from "node:module";
 import { AsyncLocalStorage } from "node:async_hooks";
 // node_modules/.nitro/vite/services/ssr/index.js
 var ssr_exports = /* @__PURE__ */ __exportAll$1({
 	a: () => TSS_SERVER_FUNCTION,
-	c: () => __require,
 	createServerEntry: () => createServerEntry,
 	default: () => server_default,
 	i: () => createServerFn,
@@ -30,7 +28,6 @@ var __exportAll = (all, no_symbols) => {
 	if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
 	return target;
 };
-var __require = /* #__PURE__ */ (() => createRequire(import.meta.url))();
 function StartServer(props) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RouterProvider, { router: props.router });
 }
@@ -546,7 +543,7 @@ var HEADERS = { TSS_SHELL: "X-TSS_SHELL" };
 * the dev styles URL for route-scoped CSS collection.
 */
 async function getStartManifest(matchedRoutes) {
-	const { tsrStartManifest } = await import("../_tanstack-start-manifest_v-yVj0CQT9.mjs");
+	const { tsrStartManifest } = await import("../_tanstack-start-manifest_v-1e3CQyeB.mjs");
 	const startManifest = tsrStartManifest();
 	let routes = startManifest.routes;
 	routes[rootRouteId];
@@ -2202,7 +2199,7 @@ var getBaseManifest = getProdBaseManifest;
 var createEarlyHintsForRequest = createEarlyHintsCollector;
 async function loadEntries() {
 	const [routerEntry, startEntry, pluginAdapters] = await Promise.all([
-		import("./router-DY_F7ago.mjs").then((n) => n.t),
+		import("./router-DqxUk2ST.mjs").then((n) => n.t),
 		import("./start-COmmreO7.mjs"),
 		import("./empty-plugin-adapters-CeyhLWeJ.mjs")
 	]);
@@ -2765,4 +2762,4 @@ var server_exports = /* @__PURE__ */ __exportAll({ setCookie: () => setCookie })
 var fetch = createStartHandler(defaultStreamHandler);
 var createServerEntry = createServerEntry$1;
 var server_default = createServerEntry({ fetch });
-export { TSS_SERVER_FUNCTION as a, __require as c, createServerEntry, server_default as default, createServerFn as i, ssr_exports as l, json as n, getServerFnById as o, createMiddleware as r, getRequest as s, server_exports as t };
+export { TSS_SERVER_FUNCTION as a, ssr_exports as c, createServerEntry, server_default as default, createServerFn as i, json as n, getServerFnById as o, createMiddleware as r, getRequest as s, server_exports as t };

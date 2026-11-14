@@ -8868,7 +8868,7 @@ var tanstackStartCookies = () => {
 					const setCookies = returned?.get("set-cookie");
 					if (!setCookies) return;
 					const parsed = parseSetCookieHeader(setCookies);
-					const { setCookie } = await import("./ssr.mjs").then((n) => n.l).then((n) => n.t);
+					const { setCookie } = await import("./ssr.mjs").then((n) => n.c).then((n) => n.t);
 					parsed.forEach((value, key) => {
 						if (!key) return;
 						try {
@@ -8924,7 +8924,7 @@ async function emitSessionCookie(ctx, sessionTokenName, sessionToken) {
 		return null;
 	}
 	try {
-		const { setCookie } = await import("./ssr.mjs").then((n) => n.l).then((n) => n.t);
+		const { setCookie } = await import("./ssr.mjs").then((n) => n.c).then((n) => n.t);
 		setCookie(sessionTokenName, sessionValue, {
 			path: cookieOptions.path ?? "/",
 			httpOnly: cookieOptions.httpOnly ?? true,
@@ -8956,7 +8956,7 @@ async function expireSessionDataCookie(ctx, cookie) {
 	const path = cookie.attributes.path ?? "/";
 	const secure = cookie.attributes.secure ?? true;
 	try {
-		const { setCookie } = await import("./ssr.mjs").then((n) => n.l).then((n) => n.t);
+		const { setCookie } = await import("./ssr.mjs").then((n) => n.c).then((n) => n.t);
 		setCookie(cookie.name, "", {
 			path,
 			httpOnly: true,
@@ -8984,7 +8984,7 @@ async function writeGateMarkerCookie(ctx, clear) {
 	const maxAge = clear ? 0 : typeof sessionMaxAge === "number" ? sessionMaxAge : void 0;
 	const value = clear ? "" : "1";
 	try {
-		const { setCookie } = await import("./ssr.mjs").then((n) => n.l).then((n) => n.t);
+		const { setCookie } = await import("./ssr.mjs").then((n) => n.c).then((n) => n.t);
 		setCookie(GATE_SESSION_MARKER_COOKIE, value, {
 			path: "/",
 			httpOnly: false,
