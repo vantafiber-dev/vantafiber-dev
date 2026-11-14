@@ -100,6 +100,51 @@ async function persistReport(guildId, userId, subject) {
   return id;
 }
 
+
+async function createJob(guildId, ownerId) {
+  const id = "job_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+  const expires = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  if (isDbConfigured()) {
+    // prevent concurrent jobs
+    const existing = await query("select id from vanta_setup_jobs where guild_id=$1 and status in ('pending','running')", [guildId]);
+    if (existing.length > 0) throw new Error("A setup job is already in progress.");
+    await query("insert into vanta_setup_jobs (id, guild_id, owner_id, status, expires_at) values ($1,$2,$3,'pending',$4)", [id, guildId, ownerId, expires]);
+  } else {
+    const path = "/home/container/vanta-setup-jobs.json";
+    let arr = [];
+    try { arr = JSON.parse(fs.readFileSync(path, "utf8")); } catch {}
+    const active = arr.find((j) => j.guildId === guildId && (j.status === "pending" || j.status === "running"));
+    if (active) throw new Error("A setup job is already in progress.");
+    arr.push({ id, guildId, ownerId, status: "pending", expiresAt: expires, createdAt: new Date().toISOString() });
+    fs.writeFileSync(path, JSON.stringify(arr));
+  }
+  return { id, expires };
+}
+
+async function getJob(jobId) {
+  if (isDbConfigured()) {
+    const rows = await query("select * from vanta_setup_jobs where id=$1", [jobId]);
+    return rows[0] ?? null;
+  }
+  const path = "/home/container/vanta-setup-jobs.json";
+  let arr = [];
+  try { arr = JSON.parse(fs.readFileSync(path, "utf8")); } catch {}
+  return arr.find((j) => j.id === jobId) ?? null;
+}
+
+async function updateJob(jobId, status, result) {
+  if (isDbConfigured()) {
+    await query("update vanta_setup_jobs set status=$2, result=$3, updated_at=now() where id=$1", [jobId, status, result ?? null]);
+  } else {
+    const path = "/home/container/vanta-setup-jobs.json";
+    let arr = [];
+    try { arr = JSON.parse(fs.readFileSync(path, "utf8")); } catch {}
+    const j = arr.find((x) => x.id === jobId);
+    if (j) { j.status = status; j.result = result; j.updatedAt = new Date().toISOString(); }
+    fs.writeFileSync(path, JSON.stringify(arr));
+  }
+}
+
 async function handleCommand(interaction) {
   const name = interaction?.data?.name ?? "";
   const roles = interaction?.member?.roles ?? [];
@@ -111,7 +156,7 @@ async function handleCommand(interaction) {
 
   switch (name) {
     case "status":
-      return { type: 4, data: { content: "Vanta Fiber — Season Zero. Discord bot: online. DB: " + (isDbConfigured() ? "configured" : "not configured") + ". ARK provider: manual (unverified). Platform: Xbox + Windows Microsoft Store ASE." } };
+      return { type: 4, data: { content: "Vanta Fiber ï¿½ Season Zero. Discord bot: online. DB: " + (isDbConfigured() ? "configured" : "not configured") + ". ARK provider: manual (unverified). Platform: Xbox + Windows Microsoft Store ASE." } };
     case "join":
       return { type: 4, data: { content: "Join the waitlist at the Vanta Fiber website. Season Zero briefing, raid calendar and event invites before launch." } };
     case "report": {
@@ -149,19 +194,18 @@ async function handleCommand(interaction) {
         if (!owner) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
         // confirmation via buttons
-        const jobId = "job_" + Date.now();
-        if (isDbConfigured()) {
-          await query("insert into vanta_setup_jobs (id, guild_id, owner_id, status) values ($1,$2,$3,'pending')", [jobId, guildId, userId]);
-        }
+        let job;
+        try { job = await createJob(guildId, userId); }
+        catch (e) { return { type: 4, data: { content: "Cannot start setup: " + (e?.message ?? e), flags: 64 } }; }
         return {
           type: 4,
           data: {
-            content: "Confirm setup apply? This will create missing channels/roles, AutoMod rules and welcome message.",
+            content: "Confirm setup apply? This will create missing channels/roles, AutoMod rules and welcome message. (expires in 5 min)",
             components: [{
               type: 1,
               components: [
-                { type: 2, style: 3, label: "Confirm", custom_id: "setup_apply_confirm:" + jobId },
-                { type: 2, style: 4, label: "Cancel", custom_id: "setup_apply_cancel:" + jobId },
+                { type: 2, style: 3, label: "Confirm", custom_id: "setup_apply_confirm:" + job.id },
+                { type: 2, style: 4, label: "Cancel", custom_id: "setup_apply_cancel:" + job.id },
               ],
             }],
           },
@@ -194,10 +238,14 @@ async function handleCommand(interaction) {
     case "vanta": {
       if (!owner) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
       const dbStatus = isDbConfigured() ? "configured" : "not configured";
+      let jobInfo = "none";
+      if (isDbConfigured()) {
+        try { const rows = await query("select status, count(*)::int as c from vanta_setup_jobs group by status"); jobInfo = rows.map((r) => r.status + ":" + r.c).join(", ") || "none"; } catch {} 
+      }
       return {
         type: 4,
         data: {
-          content: "VANTA CORE — Owner Control Panel\nDB: " + dbStatus + "\nBot: online\nGateway: connected\n\nUse buttons below for quick actions.",
+          content: "VANTA CORE ï¿½ Owner Control Panel\nDB: " + dbStatus + "\nBot: online\nGateway: connected\n\nUse buttons below for quick actions.",
           components: [{
             type: 1,
             components: [
@@ -240,20 +288,23 @@ async function handleComponent(interaction) {
   if (customId.startsWith("setup_apply_confirm:")) {
     if (!owner) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
     const jobId = customId.split(":")[1];
+    const job = await getJob(jobId);
+    if (!job) return { type: 4, data: { content: "Job not found.", flags: 64 } };
+    if (job.owner_id !== userId && job.ownerId !== userId) return { type: 4, data: { content: "Not authorized for this job.", flags: 64 } };
+    if (job.status !== "pending") return { type: 4, data: { content: "Job is not pending (status: " + job.status + ").", flags: 64 } };
+    if (new Date(job.expires_at || job.expiresAt) < new Date()) return { type: 4, data: { content: "Confirmation expired.", flags: 64 } };
+    if (job.guild_id !== guildId && job.guildId !== guildId) return { type: 4, data: { content: "Guild mismatch.", flags: 64 } };
+    // atomic transition to running
+    await updateJob(jobId, "running", null);
     const token = interaction.token;
     (async () => {
       try {
-        if (isDbConfigured()) {
-          await query("update vanta_setup_jobs set status='running', updated_at=now() where id=$1", [jobId]);
-        }
         const results = await setupApply(BOT_TOKEN, guildId);
         const created = results.filter((r) => r.status === "created").length;
         const existing = results.filter((r) => r.status === "exists").length;
         const errors = results.filter((r) => r.status.startsWith("error")).length;
         const am = results.filter((r) => r.type === "automod");
-        if (isDbConfigured()) {
-          await query("update vanta_setup_jobs set status='completed', result=$2, updated_at=now() where id=$1", [jobId, created + " created"]);
-        }
+        await updateJob(jobId, "completed", created + " created");
         const r = await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${token}/messages/@original`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -262,20 +313,20 @@ async function handleComponent(interaction) {
         if (!r.ok) console.error("[setup] followup failed", r.status);
       } catch (e) {
         console.error("[setup] apply failed", e);
-        if (isDbConfigured()) {
-          await query("update vanta_setup_jobs set status='failed', result=$2, updated_at=now() where id=$1", [jobId, String(e?.message ?? e)]).catch(() => {});
-        }
+        await updateJob(jobId, "failed", String(e?.message ?? e));
         await followup(token, "Setup apply failed: " + (e?.message ?? e));
       }
     })();
-    return { type: 6 }; // deferred update
+    return { type: 6 };
   }
 
   if (customId.startsWith("setup_apply_cancel:")) {
+    if (!owner) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
     const jobId = customId.split(":")[1];
-    if (isDbConfigured()) {
-      await query("update vanta_setup_jobs set status='cancelled', updated_at=now() where id=$1", [jobId]).catch(() => {});
-    }
+    const job = await getJob(jobId);
+    if (!job) return { type: 4, data: { content: "Job not found.", flags: 64 } };
+    if (job.status !== "pending") return { type: 4, data: { content: "Job is not pending (status: " + job.status + ").", flags: 64 } };
+    await updateJob(jobId, "cancelled", "cancelled by owner");
     return { type: 4, data: { content: "Setup cancelled." } };
   }
 

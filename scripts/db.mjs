@@ -28,7 +28,7 @@ export async function migrate() {
   const statements = [
     `create table if not exists vanta_tickets (id text primary key, guild_id text not null, user_id text not null, subject text not null, status text not null default 'open', created_at timestamptz not null default now(), updated_at timestamptz not null default now())`,
     `create table if not exists vanta_reports (id text primary key, guild_id text not null, user_id text not null, subject text not null, status text not null default 'open', created_at timestamptz not null default now())`,
-    `create table if not exists vanta_setup_jobs (id text primary key, guild_id text not null, owner_id text not null, status text not null default 'pending', created_at timestamptz not null default now(), updated_at timestamptz not null default now(), result text)`,
+    `create table if not exists vanta_setup_jobs (id text primary key, guild_id text not null, owner_id text not null, status text not null default 'pending', expires_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now(), result text)`,
     `create table if not exists vanta_welcome_messages (guild_id text primary key, message_id text not null, channel_id text not null, updated_at timestamptz not null default now())`,
     `create table if not exists vanta_audit (id serial primary key, guild_id text, actor text, action text, target text, detail text, created_at timestamptz not null default now())`,
   ];
