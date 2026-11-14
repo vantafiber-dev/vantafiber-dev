@@ -10,7 +10,7 @@ const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "";
 const APP_ID = process.env.DISCORD_CLIENT_ID || "1571074707053215824";
 const OWNER_ID = process.env.DISCORD_OWNER_ID || "";
-let cachedOwnerId = null;
+const ownerCache = new Map(); // guildId -> { id, expires }
 
 const MODERATE = 1n << 40n;
 const KICK = 1n << 1n;
@@ -41,14 +41,18 @@ function json(res, status, obj) {
 async function isOwner(interaction) {
   const userId = interaction?.member?.user?.id ?? interaction?.user?.id;
   if (OWNER_ID && userId === OWNER_ID) return true;
-  if (!cachedOwnerId) {
+  const guildId = interaction.guild_id;
+  const now = Date.now();
+  const cached = ownerCache.get(guildId);
+  if (!cached || cached.expires < now) {
     try {
-      const r = await fetch(`https://discord.com/api/v10/guilds/${interaction.guild_id}`, { headers: { Authorization: `Bot ${BOT_TOKEN}` } });
+      const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}`, { headers: { Authorization: `Bot ${BOT_TOKEN}` } });
+      if (!r.ok) return false;
       const g = await r.json();
-      cachedOwnerId = g.owner_id;
-    } catch { cachedOwnerId = null; }
+      ownerCache.set(guildId, { id: g.owner_id, expires: now + 5 * 60 * 1000 });
+    } catch { ownerCache.set(guildId, { id: null, expires: now + 60 * 1000 }); }
   }
-  return cachedOwnerId === userId;
+  return ownerCache.get(guildId)?.id === userId;
 }
 
 function hasPerm(interaction, bit) {
@@ -151,9 +155,15 @@ async function handleCommand(interaction) {
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
         const token = interaction.token;
         (async () => {
-          const results = await setupApply(BOT_TOKEN, guildId);
-          const created = results.filter((r) => r.status === "created").length;
-          await followup(token, "Repair complete: " + created + " items created/repaired.");
+          try {
+            const results = await setupApply(BOT_TOKEN, guildId);
+            const created = results.filter((r) => r.status === "created").length;
+            const r = await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${token}/messages/@original`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: "Repair complete: " + created + " items created/repaired." }) });
+            if (!r.ok) console.error("[repair] followup failed", r.status);
+          } catch (e) {
+            console.error("[repair] failed", e);
+            await followup(token, "Repair failed: " + (e?.message ?? e));
+          }
         })();
         return { type: 5 };
       }

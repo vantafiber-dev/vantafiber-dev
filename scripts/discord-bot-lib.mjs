@@ -122,7 +122,8 @@ export async function setupApply(token, guildId) {
     if (!privateCats.includes(ch.category)) continue;
     const cid = channelMap.get(ch.name);
     if (!cid) continue;
-    await discordFetch(`/channels/${cid}/permissions/${guildId}`, token, { method: "PUT", body: JSON.stringify({ type: 0, allow: "0", deny: "1024" }) });
+    const res = await discordFetch(`/channels/${cid}/permissions/${guildId}`, token, { method: "PUT", body: JSON.stringify({ type: 0, allow: "0", deny: "1024" }) });
+    results.push({ type: "permission", name: ch.name, status: res.status === 204 || res.status === 200 ? "applied" : "error " + res.status });
   }
   // AutoMod rules (idempotent by name)
   const am = await createAutoModRules(token, guildId);
