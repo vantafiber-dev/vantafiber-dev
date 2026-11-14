@@ -1,9 +1,12 @@
 import http from "node:http";
 import { createPublicKey, verify as cryptoVerify } from "node:crypto";
+import { setupPreview, setupApply, setupAudit } from "./discord-bot-lib.mjs";
 
 const PORT = process.env.SERVER_PORT || process.env.PORT || "8080";
 const HOST = "0.0.0.0";
 const PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY || "";
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
+const GUILD_ID = process.env.DISCORD_GUILD_ID || "";
 
 const SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
@@ -26,11 +29,12 @@ function json(res, status, obj) {
   res.end(data);
 }
 
-function handleCommand(interaction) {
+async function handleCommand(interaction) {
   const name = interaction?.data?.name ?? "";
   const roles = interaction?.member?.roles ?? [];
   const isAdmin = roles.includes(process.env.DISCORD_ADMIN_ROLE_ID ?? "");
   const isMod = roles.includes(process.env.DISCORD_MOD_ROLE_ID ?? "") || isAdmin;
+  const guildId = interaction.guild_id || GUILD_ID;
 
   switch (name) {
     case "status":
@@ -41,10 +45,40 @@ function handleCommand(interaction) {
       return { type: 4, data: { content: "Report submitted. Use the website /reports page for full evidence and tracking." } };
     case "ban":
       if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
-      return { type: 4, data: { content: "Ban action requires confirmation via the website admin terminal." } };
+      return { type: 4, data: { content: "Ban action requires confirmation via the website admin terminal. Discord ban not auto-applied." } };
     case "mute":
       if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
       return { type: 4, data: { content: "Timeout applied (mute alias). Duration configurable via website." } };
+    case "setup":
+      // subcommand
+      const sub = interaction?.data?.options?.[0]?.name ?? "preview";
+      if (sub === "preview") {
+        if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
+        const preview = await setupPreview(BOT_TOKEN, guildId);
+        return { type: 4, data: { content: `Setup preview: ${preview.rolesToCreate.length} roles, ${preview.categoriesToCreate.length} categories, ${preview.channelsToCreate.length} channels to create. Already present: ${preview.alreadyPresent}.` } };
+      }
+      if (sub === "apply") {
+        if (!isAdmin) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
+        if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
+        const results = await setupApply(BOT_TOKEN, guildId);
+        const created = results.filter((r) => r.status === "created").length;
+        const existing = results.filter((r) => r.status === "exists").length;
+        const errors = results.filter((r) => r.status.startsWith("error")).length;
+        return { type: 4, data: { content: `Setup apply complete: ${created} created, ${existing} already present, ${errors} errors.` } };
+      }
+      if (sub === "audit") {
+        if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
+        const audit = await setupAudit(BOT_TOKEN, guildId);
+        return { type: 4, data: { content: `Audit: ${audit.missingRoles.length} missing roles, ${audit.missingChannels.length} missing channels. Total roles: ${audit.totalRoles}, channels: ${audit.totalChannels}.` } };
+      }
+      if (sub === "repair") {
+        if (!isAdmin) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
+        if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
+        const results = await setupApply(BOT_TOKEN, guildId);
+        const created = results.filter((r) => r.status === "created").length;
+        return { type: 4, data: { content: `Repair complete: ${created} items created/repaired.` } };
+      }
+      return { type: 4, data: { content: "Unknown setup subcommand." } };
     default:
       return { type: 4, data: { content: `Unknown command: ${name}` } };
   }
@@ -54,7 +88,9 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === "GET" && url.pathname === "/health") {
-    return json(res, 200, { ok: true, service: "vanta-fiber-discord-bot" });
+    const data = JSON.stringify({ ok: true, service: "vanta-fiber-discord-bot" });
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(data);
   }
 
   if (req.method === "POST" && url.pathname === "/api/discord/interactions") {
@@ -76,7 +112,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { type: 1 });
     }
     if (interaction.type === 2) {
-      const result = handleCommand(interaction);
+      const result = await handleCommand(interaction);
       return json(res, 200, result);
     }
     return json(res, 400, { error: "Unsupported interaction type" });
