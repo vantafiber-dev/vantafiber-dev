@@ -10,7 +10,7 @@ const commands = [
   { name: "status", description: "Show server status" },
   { name: "join", description: "Join waitlist info" },
   { name: "report", description: "File a report", options: [ { name: "subject", description: "Report subject", type: 3, required: true } ] },
-  { name: "ban", description: "Ban a player (moderator)", options: [ { name: "user", description: "Target user", type: 6, required: true } ] },
+  { name: "ban", description: "Ban a player (moderator)", options: [ { name: "user", description: "Target user", type: 6, required: true }, { name: "reason", description: "Reason", type: 3, required: false } ] },
   { name: "mute", description: "Timeout a player (moderator)", options: [
     { name: "user", description: "Target user", type: 6, required: true },
     { name: "duration", description: "Duration in minutes (max 10080)", type: 4, required: false },

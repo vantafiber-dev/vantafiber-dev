@@ -400,6 +400,23 @@ async function handleComponent(interaction) {
     if (isDbConfigured()) await query("update vanta_tickets set status='closed', updated_at=now() where id=$1", [ticketId]).catch(() => {});
     return { type: 4, data: { content: "Ticket " + ticketId + " closed." } };
   }
+  if (customId.startsWith("ban_confirm:")) {
+    if (!isMod2(interaction)) return { type: 4, data: { content: "Moderator access required.", flags: 64 } };
+    const parts = customId.split(":");
+    const targetId = parts[1];
+    const reason = decodeURIComponent(parts.slice(2).join(":"));
+    const guildId = interaction.guild_id || GUILD_ID;
+    const res = await fetch("https://discord.com/api/v10/guilds/" + guildId + "/bans/" + targetId, {
+      method: "PUT",
+      headers: { Authorization: "Bot " + BOT_TOKEN, "Content-Type": "application/json", "X-Audit-Log-Reason": encodeURIComponent(reason) },
+      body: JSON.stringify({ reason }),
+    });
+    if (res.status === 200 || res.status === 204) return { type: 7, data: { content: "Banned <@" + targetId + ">. Reason: " + reason } };
+    return { type: 4, data: { content: "Ban failed (HTTP " + res.status + ").", flags: 64 } };
+  }
+  if (customId === "ban_cancel") {
+    return { type: 7, data: { content: "Ban cancelled." } };
+  }
   if (customId === "role_member" || customId === "role_creator" || customId === "role_partner") {
     const roleName = customId === "role_member" ? "Member" : customId === "role_creator" ? "Creator" : "Partner";
     return { type: 4, data: { content: "Role '" + roleName + "' noted. Self-assignment requires server role configuration; request sent to staff.", flags: 64 } };
