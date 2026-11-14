@@ -95,26 +95,32 @@ export async function setupApply(token, guildId) {
   const roleMap = new Map(existingRoles.map((r) => [r.name, r.id]));
   for (const r of BLUEPRINT.roles) {
     if (roleMap.has(r.name)) { results.push({ type: "role", name: r.name, status: "exists" }); continue; }
-    const res = await discordFetch(`/guilds/${guildId}/roles`, token, { method: "POST", body: JSON.stringify({ name: r.name, color: r.color, hoist: r.hoist, permissions: r.permissions }) });
-    if (res.status === 200 || res.status === 201) { roleMap.set(r.name, res.data.id); results.push({ type: "role", name: r.name, status: "created" }); }
-    else results.push({ type: "role", name: r.name, status: "error " + res.status });
+    try {
+      const res = await discordFetch(`/guilds/${guildId}/roles`, token, { method: "POST", body: JSON.stringify({ name: r.name, color: r.color, hoist: r.hoist, permissions: r.permissions }) });
+      if (res.status === 200 || res.status === 201) { roleMap.set(r.name, res.data.id); results.push({ type: "role", name: r.name, status: "created" }); }
+      else results.push({ type: "role", name: r.name, status: "error " + res.status });
+    } catch (e) { results.push({ type: "role", name: r.name, status: "error " + (e?.message ?? e) }); }
   }
   const { data: existingChannels } = await discordFetch(`/guilds/${guildId}/channels`, token);
   const channelMap = new Map(existingChannels.map((c) => [c.name, c.id]));
   const categoryMap = new Map();
   for (const cat of BLUEPRINT.categories) {
     if (channelMap.has(cat.name)) { categoryMap.set(cat.name, channelMap.get(cat.name)); results.push({ type: "category", name: cat.name, status: "exists" }); continue; }
-    const res = await discordFetch(`/guilds/${guildId}/channels`, token, { method: "POST", body: JSON.stringify({ name: cat.name, type: 4 }) });
-    if (res.status === 200 || res.status === 201) { channelMap.set(cat.name, res.data.id); categoryMap.set(cat.name, res.data.id); results.push({ type: "category", name: cat.name, status: "created" }); }
-    else results.push({ type: "category", name: cat.name, status: "error " + res.status });
+    try {
+      const res = await discordFetch(`/guilds/${guildId}/channels`, token, { method: "POST", body: JSON.stringify({ name: cat.name, type: 4 }) });
+      if (res.status === 200 || res.status === 201) { channelMap.set(cat.name, res.data.id); categoryMap.set(cat.name, res.data.id); results.push({ type: "category", name: cat.name, status: "created" }); }
+      else results.push({ type: "category", name: cat.name, status: "error " + res.status });
+    } catch (e) { results.push({ type: "category", name: cat.name, status: "error " + (e?.message ?? e) }); }
   }
   for (const ch of BLUEPRINT.channels) {
     if (channelMap.has(ch.name)) { results.push({ type: "channel", name: ch.name, status: "exists" }); continue; }
     const payload = { name: ch.name, type: ch.type, topic: ch.topic };
     if (ch.category && categoryMap.has(ch.category)) payload.parent_id = categoryMap.get(ch.category);
-    const res = await discordFetch(`/guilds/${guildId}/channels`, token, { method: "POST", body: JSON.stringify(payload) });
-    if (res.status === 200 || res.status === 201) { channelMap.set(ch.name, res.data.id); results.push({ type: "channel", name: ch.name, status: "created" }); }
-    else results.push({ type: "channel", name: ch.name, status: "error " + res.status + ": " + JSON.stringify(res.data).slice(0, 100) });
+    try {
+      const res = await discordFetch(`/guilds/${guildId}/channels`, token, { method: "POST", body: JSON.stringify(payload) });
+      if (res.status === 200 || res.status === 201) { channelMap.set(ch.name, res.data.id); results.push({ type: "channel", name: ch.name, status: "created" }); }
+      else results.push({ type: "channel", name: ch.name, status: "error " + res.status + ": " + JSON.stringify(res.data).slice(0, 100) });
+    } catch (e) { results.push({ type: "channel", name: ch.name, status: "error " + (e?.message ?? e) }); }
   }
   const privateCats = ["STAFF (PRIVATE)", "OWNER (RESTRICTED)"];
   for (const ch of BLUEPRINT.channels) {
@@ -137,10 +143,14 @@ export async function setupApply(token, guildId) {
       await discordFetch(`/channels/${cid}/permissions/${rid}`, token, { method: "PUT", body: JSON.stringify({ type: 0, allow: "3072", deny: "0" }) });
     }
   }
-  const am = await createAutoModRules(token, guildId);
-  for (const r of am) results.push({ type: "automod", name: r.name, status: r.status });
-  const w = await postWelcome(token, guildId, channelMap);
-  results.push({ type: "welcome", name: "welcome message", status: w.status });
+  try {
+    const am = await createAutoModRules(token, guildId);
+    for (const r of am) results.push({ type: "automod", name: r.name, status: r.status });
+  } catch (e) { results.push({ type: "automod", name: "automod", status: "error " + (e?.message ?? e) }); console.error("[setup] automod failed", e); }
+  try {
+    const w = await postWelcome(token, guildId, channelMap);
+    results.push({ type: "welcome", name: "welcome message", status: w.status });
+  } catch (e) { results.push({ type: "welcome", name: "welcome message", status: "error " + (e?.message ?? e) }); console.error("[setup] welcome failed", e); }
   try {
     const welcomeId = channelMap.get("welcome");
     if (welcomeId) {
