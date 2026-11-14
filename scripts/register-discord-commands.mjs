@@ -29,6 +29,8 @@ const commands = [
   { name: "ark", description: "ARK cluster status (staff)" },
   { name: "shop", description: "Shop and supporter packages" },
   { name: "staff", description: "Staff roster and tasks" },
+  { name: "analytics", description: "Analytics (owner)" },
+  { name: "automation", description: "Automation status (owner)" },
   { name: "campaign", description: "Campaign management (owner)" },
   { name: "partner", description: "Partner enquiry" },
   { name: "onboard", description: "Onboarding role selection" },
