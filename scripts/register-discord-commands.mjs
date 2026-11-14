@@ -18,6 +18,13 @@ const commands = [
     { name: "audit", description: "Audit current setup", type: 1 },
     { name: "repair", description: "Repair missing items (owner only)", type: 1 },
   ] },
+  { name: "vanta", description: "Owner control center" },
+  { name: "ticket", description: "Open a support ticket" },
+  { name: "mod", description: "Moderation case (staff)" },
+  { name: "event", description: "Event info and registration" },
+  { name: "ark", description: "ARK cluster status (staff)" },
+  { name: "shop", description: "Shop and supporter packages" },
+  { name: "staff", description: "Staff roster and tasks" },
 ];
 
 const url = `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`;

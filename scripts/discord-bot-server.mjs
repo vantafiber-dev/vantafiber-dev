@@ -81,6 +81,24 @@ async function handleCommand(interaction) {
         return { type: 4, data: { content: `Repair complete: ${created} items created/repaired.` } };
       }
       return { type: 4, data: { content: "Unknown setup subcommand." } };
+    case "vanta":
+      if (!isAdmin) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
+      return { type: 4, data: { content: "VANTA CORE � Overview: Discord bot online, gateway connected, interactions verified. Use /setup audit for infrastructure status. Website: see deployment." } };
+    case "ticket":
+      return { type: 4, data: { content: "Ticket opened. A staff member will respond. Use /ticket on the website for full tracking and transcripts." } };
+    case "mod":
+      if (!isMod) return { type: 4, data: { content: "Moderator access required.", flags: 64 } };
+      return { type: 4, data: { content: "Moderation case created. Use website /reports for evidence, assignment and resolution workflow." } };
+    case "event":
+      return { type: 4, data: { content: "Event noted. Registrations and rosters managed on the website /events page." } };
+    case "ark":
+      if (!isMod) return { type: 4, data: { content: "Staff access required.", flags: 64 } };
+      return { type: 4, data: { content: "ARK cluster status: platform Xbox + Windows Microsoft Store ASE. Provider integration: manual workflow. See website /status." } };
+    case "shop":
+      return { type: 4, data: { content: "Shop and supporter packages: see website /commerce. Payment processing is owner-gated." } };
+    case "staff":
+      if (!isMod) return { type: 4, data: { content: "Staff access required.", flags: 64 } };
+      return { type: 4, data: { content: "Staff roster and tasks managed on the website. Use /vanta for owner controls." } };
     default:
       return { type: 4, data: { content: `Unknown command: ${name}` } };
   }
