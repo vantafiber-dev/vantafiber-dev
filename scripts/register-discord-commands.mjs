@@ -29,6 +29,8 @@ const commands = [
   { name: "ark", description: "ARK cluster status (staff)" },
   { name: "shop", description: "Shop and supporter packages" },
   { name: "staff", description: "Staff roster and tasks" },
+  { name: "campaign", description: "Campaign management (owner)" },
+  { name: "partner", description: "Partner enquiry" },
   { name: "onboard", description: "Onboarding role selection" },
   { name: "wipe", description: "Wipe management (owner)", options: [ { name: "status", description: "Wipe status", type: 1 }, { name: "schedule", description: "Schedule wipe", type: 1 } ] },
   { name: "case", description: "Create a moderation case (staff)", options: [ { name: "subject", description: "Case subject", type: 3, required: true } ] },
