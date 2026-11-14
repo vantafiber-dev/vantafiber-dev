@@ -2,6 +2,7 @@ import http from "node:http";
 import fs from "node:fs";
 import { createPublicKey, verify as cryptoVerify } from "node:crypto";
 import { setupPreview, setupApply, setupAudit } from "./discord-bot-lib.mjs";
+import { isDbConfigured, migrate, query } from "./db.mjs";
 
 const PORT = process.env.SERVER_PORT || process.env.PORT || "8080";
 const HOST = "0.0.0.0";
@@ -10,7 +11,6 @@ const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || "";
 const GUILD_ID = process.env.DISCORD_GUILD_ID || "";
 const APP_ID = process.env.DISCORD_CLIENT_ID || "1571074707053215824";
 const OWNER_ID = process.env.DISCORD_OWNER_ID || "";
-const ownerCache = new Map(); // guildId -> { id, expires }
 
 const MODERATE = 1n << 40n;
 const KICK = 1n << 1n;
@@ -38,6 +38,7 @@ function json(res, status, obj) {
   res.end(data);
 }
 
+const ownerCache = new Map();
 async function isOwner(interaction) {
   const userId = interaction?.member?.user?.id ?? interaction?.user?.id;
   if (OWNER_ID && userId === OWNER_ID) return true;
@@ -60,15 +61,43 @@ function hasPerm(interaction, bit) {
   return (perms & bit) === bit || (perms & ADMIN) === ADMIN;
 }
 
-async function followup(interactionToken, content) {
+async function followup(token, content) {
   try {
-    const r = await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${interactionToken}/messages/@original`, {
+    const r = await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${token}/messages/@original`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
     });
     if (!r.ok) console.error("[followup] failed", r.status);
   } catch (e) { console.error("[followup] error", e); }
+}
+
+async function persistTicket(guildId, userId, subject) {
+  const id = "tkt_" + Date.now();
+  if (isDbConfigured()) {
+    await query("insert into vanta_tickets (id, guild_id, user_id, subject) values ($1,$2,$3,$4)", [id, guildId, userId, subject]);
+  } else {
+    const p = "/home/container/vanta-tickets.json";
+    let arr = [];
+    try { arr = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
+    arr.push({ id, guildId, userId, subject, createdAt: new Date().toISOString(), status: "open" });
+    fs.writeFileSync(p, JSON.stringify(arr));
+  }
+  return id;
+}
+
+async function persistReport(guildId, userId, subject) {
+  const id = "rpt_" + Date.now();
+  if (isDbConfigured()) {
+    await query("insert into vanta_reports (id, guild_id, user_id, subject) values ($1,$2,$3,$4)", [id, guildId, userId, subject]);
+  } else {
+    const p = "/home/container/vanta-reports.json";
+    let arr = [];
+    try { arr = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
+    arr.push({ id, guildId, userId, subject, createdAt: new Date().toISOString() });
+    fs.writeFileSync(p, JSON.stringify(arr));
+  }
+  return id;
 }
 
 async function handleCommand(interaction) {
@@ -82,20 +111,13 @@ async function handleCommand(interaction) {
 
   switch (name) {
     case "status":
-      return { type: 4, data: { content: "Vanta Fiber ï¿½ Season Zero. Discord bot: online. ARK provider integration: manual workflow (not verified live). Platform: Xbox + Windows Microsoft Store ASE. Positioning: 1000x Fibercraft PvP." } };
+      return { type: 4, data: { content: "Vanta Fiber — Season Zero. Discord bot: online. DB: " + (isDbConfigured() ? "configured" : "not configured") + ". ARK provider: manual (unverified). Platform: Xbox + Windows Microsoft Store ASE." } };
     case "join":
       return { type: 4, data: { content: "Join the waitlist at the Vanta Fiber website. Season Zero briefing, raid calendar and event invites before launch." } };
     case "report": {
       const subject = (interaction?.data?.options?.[0]?.value ?? "report").toString();
-      const record = { id: "rpt_" + Date.now(), userId, subject, createdAt: new Date().toISOString() };
-      try {
-        const p = "/home/container/vanta-reports.json";
-        let arr = [];
-        try { arr = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
-        arr.push(record);
-        fs.writeFileSync(p, JSON.stringify(arr));
-      } catch {}
-      return { type: 4, data: { content: "Report recorded (id " + record.id + "). Staff will review." } };
+      const id = await persistReport(guildId, userId, subject);
+      return { type: 4, data: { content: "Report recorded (id " + id + "). Staff will review." } };
     }
     case "ban":
       if (!isMod) return { type: 4, data: { content: "You are not authorized to use this command.", flags: 64 } };
@@ -106,11 +128,11 @@ async function handleCommand(interaction) {
       if (!targetId) return { type: 4, data: { content: "Missing target user.", flags: 64 } };
       const durationOpt = interaction?.data?.options?.[1]?.value;
       const minutes = Math.min(Math.max(Number(durationOpt) || 10, 1), 10080);
-      const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
       const reason = interaction?.data?.options?.[2]?.value ?? "No reason provided";
+      const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
       const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${targetId}`, {
         method: "PATCH",
-        headers: { Authorization: `Bot ${BOT_TOKEN}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bot ${BOT_TOKEN}`, "Content-Type": "application/json", "X-Audit-Log-Reason": encodeURIComponent(reason) },
         body: JSON.stringify({ communication_disabled_until: until }),
       });
       if (res.status === 200) return { type: 4, data: { content: "Timed out <@" + targetId + "> for " + minutes + " minutes. Reason: " + reason } };
@@ -126,24 +148,24 @@ async function handleCommand(interaction) {
       if (sub === "apply") {
         if (!owner) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
-        // defer
-        const token = interaction.token;
-        (async () => {
-          try {
-            const results = await setupApply(BOT_TOKEN, guildId);
-            const created = results.filter((r) => r.status === "created").length;
-            const existing = results.filter((r) => r.status === "exists").length;
-            const errors = results.filter((r) => r.status.startsWith("error")).length;
-            const am = results.filter((r) => r.type === "automod");
-            const msg = "Setup apply complete: " + created + " created, " + existing + " already present, " + errors + " errors. AutoMod: " + am.map((r) => r.status).join(", ") + ".";
-            const r = await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${token}/messages/@original`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
-            if (!r.ok) console.error("[setup] followup failed", r.status);
-          } catch (e) {
-            console.error("[setup] apply failed", e);
-            await followup(token, "Setup apply failed: " + (e?.message ?? e));
-          }
-        })();
-        return { type: 5 };
+        // confirmation via buttons
+        const jobId = "job_" + Date.now();
+        if (isDbConfigured()) {
+          await query("insert into vanta_setup_jobs (id, guild_id, owner_id, status) values ($1,$2,$3,'pending')", [jobId, guildId, userId]);
+        }
+        return {
+          type: 4,
+          data: {
+            content: "Confirm setup apply? This will create missing channels/roles, AutoMod rules and welcome message.",
+            components: [{
+              type: 1,
+              components: [
+                { type: 2, style: 3, label: "Confirm", custom_id: "setup_apply_confirm:" + jobId },
+                { type: 2, style: 4, label: "Cancel", custom_id: "setup_apply_cancel:" + jobId },
+              ],
+            }],
+          },
+        };
       }
       if (sub === "audit") {
         if (!BOT_TOKEN) return { type: 4, data: { content: "Bot token not configured.", flags: 64 } };
@@ -169,20 +191,27 @@ async function handleCommand(interaction) {
       }
       return { type: 4, data: { content: "Unknown setup subcommand." } };
     }
-    case "vanta":
+    case "vanta": {
       if (!owner) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
-      return { type: 4, data: { content: "VANTA CORE ï¿½ Overview: Discord bot online, gateway connected, interactions verified. Use /setup audit for infrastructure status." } };
+      const dbStatus = isDbConfigured() ? "configured" : "not configured";
+      return {
+        type: 4,
+        data: {
+          content: "VANTA CORE — Owner Control Panel\nDB: " + dbStatus + "\nBot: online\nGateway: connected\n\nUse buttons below for quick actions.",
+          components: [{
+            type: 1,
+            components: [
+              { type: 2, style: 1, label: "Run Setup Audit", custom_id: "vanta_audit" },
+              { type: 2, style: 2, label: "Setup Preview", custom_id: "vanta_preview" },
+            ],
+          }],
+        },
+      };
+    }
     case "ticket": {
       const subject = (interaction?.data?.options?.[0]?.value ?? "support").toString();
-      const record = { id: "tkt_" + Date.now(), userId, subject, createdAt: new Date().toISOString(), status: "open" };
-      try {
-        const p = "/home/container/vanta-tickets.json";
-        let arr = [];
-        try { arr = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
-        arr.push(record);
-        fs.writeFileSync(p, JSON.stringify(arr));
-      } catch {}
-      return { type: 4, data: { content: "Ticket opened (id " + record.id + "). Staff notified." } };
+      const id = await persistTicket(guildId, userId, subject);
+      return { type: 4, data: { content: "Ticket opened (id " + id + "). Staff notified." } };
     }
     case "mod":
       if (!isMod) return { type: 4, data: { content: "Moderator access required.", flags: 64 } };
@@ -202,11 +231,74 @@ async function handleCommand(interaction) {
   }
 }
 
+async function handleComponent(interaction) {
+  const customId = interaction?.data?.custom_id ?? "";
+  const guildId = interaction.guild_id || GUILD_ID;
+  const userId = interaction?.member?.user?.id ?? interaction?.user?.id ?? "unknown";
+  const owner = await isOwner(interaction);
+
+  if (customId.startsWith("setup_apply_confirm:")) {
+    if (!owner) return { type: 4, data: { content: "Owner authorization required.", flags: 64 } };
+    const jobId = customId.split(":")[1];
+    const token = interaction.token;
+    (async () => {
+      try {
+        if (isDbConfigured()) {
+          await query("update vanta_setup_jobs set status='running', updated_at=now() where id=$1", [jobId]);
+        }
+        const results = await setupApply(BOT_TOKEN, guildId);
+        const created = results.filter((r) => r.status === "created").length;
+        const existing = results.filter((r) => r.status === "exists").length;
+        const errors = results.filter((r) => r.status.startsWith("error")).length;
+        const am = results.filter((r) => r.type === "automod");
+        if (isDbConfigured()) {
+          await query("update vanta_setup_jobs set status='completed', result=$2, updated_at=now() where id=$1", [jobId, created + " created"]);
+        }
+        const r = await fetch(`https://discord.com/api/v10/webhooks/${APP_ID}/${token}/messages/@original`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: "Setup apply complete: " + created + " created, " + existing + " already present, " + errors + " errors. AutoMod: " + am.map((r) => r.status).join(", ") + "." }),
+        });
+        if (!r.ok) console.error("[setup] followup failed", r.status);
+      } catch (e) {
+        console.error("[setup] apply failed", e);
+        if (isDbConfigured()) {
+          await query("update vanta_setup_jobs set status='failed', result=$2, updated_at=now() where id=$1", [jobId, String(e?.message ?? e)]).catch(() => {});
+        }
+        await followup(token, "Setup apply failed: " + (e?.message ?? e));
+      }
+    })();
+    return { type: 6 }; // deferred update
+  }
+
+  if (customId.startsWith("setup_apply_cancel:")) {
+    const jobId = customId.split(":")[1];
+    if (isDbConfigured()) {
+      await query("update vanta_setup_jobs set status='cancelled', updated_at=now() where id=$1", [jobId]).catch(() => {});
+    }
+    return { type: 4, data: { content: "Setup cancelled." } };
+  }
+
+  if (customId === "vanta_audit") {
+    if (!owner) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
+    const audit = await setupAudit(BOT_TOKEN, guildId);
+    return { type: 4, data: { content: "Audit: " + audit.missingRoles.length + " missing roles, " + audit.missingChannels.length + " missing channels. Total roles: " + audit.totalRoles + ", channels: " + audit.totalChannels + "." } };
+  }
+
+  if (customId === "vanta_preview") {
+    if (!owner) return { type: 4, data: { content: "Owner access required.", flags: 64 } };
+    const preview = await setupPreview(BOT_TOKEN, guildId);
+    return { type: 4, data: { content: "Setup preview: " + preview.rolesToCreate.length + " roles, " + preview.categoriesToCreate.length + " categories, " + preview.channelsToCreate.length + " channels to create. Already present: " + preview.alreadyPresent + "." } };
+  }
+
+  return { type: 4, data: { content: "Unknown component." } };
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === "GET" && url.pathname === "/health") {
-    const data = JSON.stringify({ ok: true, service: "vanta-fiber-discord-bot" });
+    const data = JSON.stringify({ ok: true, service: "vanta-fiber-discord-bot", db: isDbConfigured() });
     res.writeHead(200, { "Content-Type": "application/json" });
     return res.end(data);
   }
@@ -233,14 +325,26 @@ const server = http.createServer(async (req, res) => {
       const result = await handleCommand(interaction);
       return json(res, 200, result);
     }
+    if (interaction.type === 3) {
+      const result = await handleComponent(interaction);
+      return json(res, 200, result);
+    }
     return json(res, 400, { error: "Unsupported interaction type" });
   }
 
   json(res, 404, { error: "Not found" });
 });
 
-server.listen(Number(PORT), HOST, () => {
-  console.log("[bot] listening on " + HOST + ":" + PORT);
+// Run migrations on startup
+migrate().then(() => {
+  server.listen(Number(PORT), HOST, () => {
+    console.log("[bot] listening on " + HOST + ":" + PORT);
+  });
+}).catch((e) => {
+  console.error("[db] migration failed", e);
+  server.listen(Number(PORT), HOST, () => {
+    console.log("[bot] listening on " + HOST + ":" + PORT + " (no db)");
+  });
 });
 
 server.on("error", (err) => {
